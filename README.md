@@ -163,6 +163,8 @@ The token acts as you, so the bot sees exactly what you can see in ClickUp.
 
 To update: `git pull && docker compose up -d --build`.
 
+**Sharing the server with another site:** if something else already uses ports 80/443 (`Bind for 0.0.0.0:80 failed: port is already allocated`), skip the bundled Caddy. Add `COMPOSE_FILE=docker-compose.yml:docker-compose.shared-proxy.yml` to `.env` and run `docker compose up -d --build`. The app then listens on `127.0.0.1:8081` only. Point your existing proxy's `bot.yourdomain.com` at it, forwarding `/webhook` and `/healthz` and nothing else.
+
 ## Security
 
 - **Signature check:** every `POST /webhook` must carry a valid `X-Hub-Signature-256` HMAC of the raw body, signed with your app secret and compared in constant time. Anything else gets 401.
