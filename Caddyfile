@@ -1,0 +1,13 @@
+{$DOMAIN} {
+	encode gzip
+
+	# Only the webhook and health check are public.
+	@public path /webhook /healthz
+	handle @public {
+		reverse_proxy app:8080
+	}
+
+	handle {
+		respond 404
+	}
+}

@@ -1,0 +1,257 @@
+=====================================================================
+                    RESTOREFINE OPS BOT - HOW TO USE IT
+                        A guide for the two founders
+=====================================================================
+
+
+1. WHAT IS IT?
+---------------------------------------------------------------------
+
+The Ops Bot is a WhatsApp contact that tells you what is happening in
+ClickUp: what's due, what's late, who is working on what, and which
+social media posts are going out.
+
+You don't need to open ClickUp. Just send the bot a short command on
+WhatsApp and it replies within a few seconds.
+
+  - The bot lives on our BUSINESS WhatsApp number.
+  - You message it from your own PERSONAL WhatsApp, like any other chat.
+  - Tip: save the business number in your contacts as "Ops Bot" and pin
+    the chat so it's always at the top.
+
+
+2. WHO CAN USE IT?
+---------------------------------------------------------------------
+
+Only the two founders. The bot knows your two personal numbers and
+replies to nobody else.
+
+  - If anyone else messages the business number, the bot ignores them
+    completely. They get no reply and see none of our information.
+  - Team members are NEVER messaged by the bot. Their names appear in
+    the lists only so you can see who a task belongs to.
+  - The bot only reads ClickUp. It never changes, creates or deletes
+    anything there.
+
+
+3. THE COMMANDS
+---------------------------------------------------------------------
+
+Type any of these into the chat and send it.
+
+  /due      What's due TODAY and TOMORROW
+            Lists every unfinished task and every social media post
+            due today and tomorrow, with who is on each one. It ends
+            with a count of older tasks that are still overdue.
+            This is the same message you get every morning at 08:00.
+            (/today does the same thing.)
+
+  /update   The full monthly overview
+            - Headline numbers: due this month, completed, still open,
+              overdue
+            - A team table: how many tasks each person has open, how
+              many are late, how many they finished this month
+            - Overdue work left over from earlier months
+            - A day-by-day calendar of this month
+                ✅ = done   ⏳ = still open   ⚠️ = overdue
+            - A summary of social media uploads
+            - A preview of next month
+
+  /uploads  The social media posting calendar for this month
+            One post per line, with how many have been posted, how
+            many are coming up and how many were missed. It also lists
+            posts from the last 30 days that were never marked as
+            posted.
+
+  /uploads next
+            The posting calendar for NEXT month.
+
+  /<name>   One person's work, for example:  /sunil, /arpan, /himal, /sagun, /sonam
+            Shows their numbers, then their overdue tasks, their open
+            tasks grouped by status, and what they finished this month.
+
+  /team     Everyone in the ClickUp workspace, with the exact command
+            to type for each person. Use this if you're not sure how
+            to spell someone's name.
+
+  /help     Shows the list of commands.
+
+
+4. HOW TO TYPE COMMANDS (it's forgiving)
+---------------------------------------------------------------------
+
+  - The slash is optional:          "due" works the same as "/due"
+  - Capitals don't matter:          "/UPDATE" = "/update"
+  - Punctuation at the end is fine: "/due?" or "/due." still work
+  - Names can be shortened:         "/su" finds Sunil
+  - Full names work too:            "/sunil paudel"
+  - If a name matches more than one person, the bot lists them and
+    you pick the right one.
+  - If the bot doesn't understand you, it replies with the list of
+    commands.
+  - Text only. Photos, voice notes and stickers get the reply
+    "I only understand text commands".
+
+
+5. THE DAILY 08:00 REMINDER
+---------------------------------------------------------------------
+
+Every morning at 08:00, without you asking, the bot sends both
+founders the "Due soon" message. It's the same as /due:
+
+  📌 Due today         - tasks that need finishing today
+  📤 Posting today     - social media posts going out today
+  🔜 Due tomorrow      - tasks due tomorrow
+  📤 Posting tomorrow  - social media posts going out tomorrow
+  ⚠️ Older overdue     - how many older tasks are still late
+
+So every task is flagged TWICE: the morning before it's due, and on
+the morning it's due. For example, a task due on Friday shows up in
+Thursday's message under "Due tomorrow" and in Friday's message under
+"Due today".
+
+Finished tasks and posts are left out. If nothing is due, the message
+says "Nothing due today or tomorrow. 🎉"
+
+Sometimes the morning message is SHORTER and only shows the numbers,
+e.g. "3 items are due today and 2 due tomorrow. Reply /due to see the
+full list." Section 6 explains why. Just reply /due and the full list
+arrives.
+
+
+6. IS IT FREE? (the WhatsApp 24-hour rule)
+---------------------------------------------------------------------
+
+Short answer: using the bot is free. The morning reminder is free too,
+as long as you've messaged the bot in the last 24 hours.
+
+How WhatsApp charges businesses:
+
+  FREE - Anything YOU send to the bot.
+         Incoming messages never cost anything.
+
+  FREE - The bot's replies to your commands.
+         When you message the bot, a free 24-hour window opens for
+         you. Anything the bot sends you in that window costs nothing.
+
+  FREE - The 08:00 reminder, IF you've messaged the bot in the
+         previous 24 hours (your window is still open).
+
+  SMALL CHARGE - The 08:00 reminder, IF you HAVEN'T messaged the bot
+         in the previous 24 hours. WhatsApp then makes the bot send a
+         short pre-approved message (the "template") with just the
+         numbers. That costs a few pence. Reply /due and you get the
+         full list for free, because your reply opens a new window.
+
+  What this means day to day:
+    - Messaged the bot yesterday? You get the full list at 08:00.
+      Free.
+    - Haven't messaged it for a while? You get the short version at
+      08:00 (a few pence). Reply /due for the full list. Free.
+
+Nothing else costs money on the WhatsApp side. Your normal phone data
+applies, as with any WhatsApp chat.
+
+
+7. TIPS
+---------------------------------------------------------------------
+
+  ★ Keep it free: send the bot one command each day, e.g. /due in the
+    afternoon. That keeps your window open, so the next morning's full
+    reminder is free.
+
+  ★ Morning routine: read the 08:00 message, then send /<name> for
+    anyone who has a lot due or a lot overdue.
+
+  ★ Weekly check: send /update once a week (e.g. Monday morning) to
+    see the whole month and how the team is doing.
+
+  ★ Social media: send /uploads to check posts are going out, and
+    /uploads next near the end of the month to check next month is
+    planned.
+
+  ★ Forgot a name? Send /team and copy the command shown.
+
+  ★ Pin the chat and save the number as "Ops Bot".
+
+
+8. THE BOT IS ONLY AS GOOD AS CLICKUP
+---------------------------------------------------------------------
+
+The bot reads ClickUp live every time you ask, so what it shows
+depends on how ClickUp is kept. Please make sure the team:
+
+  - Gives every task a DUE DATE. Tasks with no due date never appear
+    in the reminder or the calendar. They only appear in /<name> and
+    in the team table.
+  - ASSIGNS every task to someone. Otherwise it shows as
+    "Unassigned".
+  - Marks tasks as COMPLETE when finished. Otherwise they count as
+    open or overdue.
+  - Puts social media posts in the "Uploads" folder in ClickUp, with
+    the posting date as the due date, and marks them complete once
+    posted.
+
+What the words mean:
+  Done / Posted - the task is marked complete in ClickUp
+  Open          - not complete yet
+  Overdue / Late / Missed
+                - the due date has passed and it isn't complete
+
+Changes made in ClickUp can take up to a minute to show in the bot.
+
+
+9. GOOD TO KNOW
+---------------------------------------------------------------------
+
+  - Long replies (like /update) can arrive as several messages in a
+    row. That's normal.
+  - Long lists are cut short with "+5 more" (or similar) to keep them
+    readable. Send /<name> to see one person's full list.
+  - Numbers and the team table appear in a fixed-width font so the
+    columns line up. Turn your phone sideways if they look squashed.
+  - Every report shows the date and time at the top, so you know it's
+    current.
+  - The bot doesn't store any data. It fetches from ClickUp fresh
+    every time.
+
+
+10. IF SOMETHING GOES WRONG
+---------------------------------------------------------------------
+
+  No reply at all
+    -> Make sure you're messaging the BUSINESS number from your own
+       personal WhatsApp number.
+    -> Wait a minute and try again. If there's still nothing, tell
+       whoever looks after the bot. The server may be down.
+
+  "Couldn't fetch data from ClickUp right now"
+    -> ClickUp is busy or briefly unavailable. Try again in a minute.
+
+  "I don't recognise /..."
+    -> The name wasn't found. Send /team to see the right commands.
+
+  Didn't get the 08:00 message
+    -> If the server was restarting or down at exactly 08:00, that
+       day's reminder is skipped. Send /due to get it now.
+
+  A task is missing from the list
+    -> Check it in ClickUp: does it have a due date, and is it still
+       open (not marked complete)?
+
+
+=====================================================================
+QUICK CARD (screenshot this)
+
+  /due                                            today + tomorrow (also sent at 08:00 every day)
+  /update                                         full monthly overview
+  /uploads                                        this month's social media posts
+  /uploads next                                   next month's social media posts
+  /sunil, /arpan, /himal, /sagun, /sonam          one person's work (use any name)
+  /team                                           everyone + their command
+  /help                                           list of commands
+
+  Messaging the bot and its replies: FREE
+  08:00 reminder: FREE if you messaged the bot in the last 24 hours
+  Tip: send one command a day to keep the morning reminder free.
+=====================================================================
