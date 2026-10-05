@@ -1,0 +1,30 @@
+# Use when another site on the host already owns ports 80/443. Instead of the
+# bundled Caddy, a Cloudflare Tunnel carries bot.example.com to the app over an
+# outbound connection, so the bot opens no public ports and shares nothing
+# with the other site. Cloudflare provides the HTTPS certificate.
+#
+# Enable it by adding these lines to .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.tunnel.yml
+#   TUNNEL_TOKEN=<token from the Cloudflare tunnel>
+services:
+  app:
+    # For checks from the server itself: curl http://127.0.0.1:8081/healthz
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-8081}:8080"
+
+  caddy:
+    profiles: ["bundled-caddy"]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    restart: unless-stopped
+    depends_on:
+      - app
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

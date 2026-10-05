@@ -163,7 +163,7 @@ The token acts as you, so the bot sees exactly what you can see in ClickUp.
 
 To update: `git pull && docker compose up -d --build`.
 
-**Sharing the server with another site:** if something else already uses ports 80/443 (`Bind for 0.0.0.0:80 failed: port is already allocated`), skip the bundled Caddy. Add `COMPOSE_FILE=docker-compose.yml:docker-compose.shared-proxy.yml` to `.env` and run `docker compose up -d --build`. The app then listens on `127.0.0.1:8081` only. Point your existing proxy's `bot.yourdomain.com` at it, forwarding `/webhook` and `/healthz` and nothing else.
+**Sharing the server with another site:** if something else already uses ports 80/443 (`Bind for 0.0.0.0:80 failed: port is already allocated`), use a Cloudflare Tunnel instead of the bundled Caddy. The bot then opens no public ports and doesn't touch the other site. In Cloudflare **Zero Trust → Networks → Tunnels**, create a tunnel and add a public hostname `bot.yourdomain.com` → `HTTP` `app:8080`. Delete any existing DNS record for that name first. Then add `COMPOSE_FILE=docker-compose.yml:docker-compose.tunnel.yml` and `TUNNEL_TOKEN=<token>` to `.env` and run `docker compose up -d --build`.
 
 ## Security
 
