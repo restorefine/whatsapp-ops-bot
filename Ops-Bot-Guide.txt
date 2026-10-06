@@ -45,7 +45,7 @@ Type any of these into the chat and send it.
             Lists every unfinished task and every social media post
             due today and tomorrow, with who is on each one. It ends
             with a count of older tasks that are still overdue.
-            (The automatic 08:00 version is paused for now. See section 5.)
+            (The automatic 08:00 version is paused for now. See section 7.)
             (/today does the same thing.)
 
   /update   The full monthly overview
@@ -75,7 +75,7 @@ Type any of these into the chat and send it.
   /remind <name>
             Sends that person their tasks due TODAY, for example:
             /remind sunil     (/reminder sunil works too)
-            Always free. Section 6 explains how it works step by step.
+            Always free. Section 5 explains how it works step by step.
 
   /team     Everyone in the ClickUp workspace, with the exact command
             to type for each person. Use this if you're not sure how
@@ -100,73 +100,7 @@ Type any of these into the chat and send it.
     "I only understand text commands".
 
 
-5. THE DAILY 08:00 REMINDER  (PAUSED FOR NOW)
----------------------------------------------------------------------
-
-  ** The automatic morning message is switched off for now. Send /due
-     whenever you want the list. The rest of this section describes
-     how it works if it's switched back on. **
-
-Every morning at 08:00, without you asking, the bot sends both
-founders the "Due soon" message. It's the same as /due:
-
-  📌 Due today         - tasks that need finishing today
-  📤 Posting today     - social media posts going out today
-  🔜 Due tomorrow      - tasks due tomorrow
-  📤 Posting tomorrow  - social media posts going out tomorrow
-  ⚠️ Older overdue     - how many older tasks are still late
-
-So every task is flagged TWICE: the morning before it's due, and on
-the morning it's due. For example, a task due on Friday shows up in
-Thursday's message under "Due tomorrow" and in Friday's message under
-"Due today".
-
-Finished tasks and posts are left out. If nothing is due, the message
-says "Nothing due today or tomorrow. 🎉"
-
-Sometimes the morning message is SHORTER and only shows the numbers,
-e.g. "3 items are due today and 2 due tomorrow. Reply /due to see the
-full list." Section 6 explains why. Just reply /due and the full list
-arrives.
-
-
-6. IS IT FREE? (the WhatsApp 24-hour rule)
----------------------------------------------------------------------
-
-Short answer: using the bot is free. The morning reminder is free too,
-as long as you've messaged the bot in the last 24 hours.
-
-How WhatsApp charges businesses:
-
-  FREE - Anything YOU send to the bot.
-         Incoming messages never cost anything.
-
-  FREE - The bot's replies to your commands.
-         When you message the bot, a free 24-hour window opens for
-         you. Anything the bot sends you in that window costs nothing.
-
-  FREE - The 08:00 reminder, IF you've messaged the bot in the
-         previous 24 hours (your window is still open).
-
-  SMALL CHARGE - The 08:00 reminder, IF you HAVEN'T messaged the bot
-         in the previous 24 hours. WhatsApp then makes the bot send a
-         short pre-approved message (the "template") with just the
-         numbers. That costs a few pence. Reply /due and you get the
-         full list for free, because your reply opens a new window.
-
-  What this means day to day:
-    - Messaged the bot yesterday? You get the full list at 08:00.
-      Free.
-    - Haven't messaged it for a while? You get the short version at
-      08:00 (a few pence). Reply /due for the full list. Free.
-
-/remind is ALWAYS free. See "Reminding a team member" below.
-
-Nothing else costs money on the WhatsApp side. Your normal phone data
-applies, as with any WhatsApp chat.
-
-
-REMINDING A TEAM MEMBER  (/remind <name>)
+5. REMINDING A TEAM MEMBER  (/remind <name>)
 ---------------------------------------------------------------------
 
 Use this to nudge someone about the tasks they must finish TODAY.
@@ -230,7 +164,63 @@ Good to know:
     so you'll get the link (reply B) until each person messages again.
 
 
-7. TIPS
+6. IS IT FREE? (the WhatsApp 24-hour rule)
+---------------------------------------------------------------------
+
+Short answer: yes. Everything you use right now is free.
+
+The one WhatsApp rule to know: the bot can message someone for free
+only if THEY messaged the business number in the last 24 hours. If the
+bot messages someone first, WhatsApp charges a few pence.
+
+  FREE - Anything you send to the bot, and its replies to you.
+         Messaging the bot opens a free 24-hour window for you.
+
+  FREE - /remind. The bot only messages a team member itself when
+         they've messaged the business number in the last 24 hours.
+         Otherwise it gives YOU a link to send the reminder yourself
+         (section 5). It never pays to message anyone.
+
+  SMALL CHARGE - Only the 08:00 reminder, which is paused (section 7).
+         If it's switched back on, it costs a few pence on days you
+         haven't messaged the bot in the previous 24 hours.
+
+Nothing else costs money on the WhatsApp side. Your normal phone data
+applies, as with any WhatsApp chat.
+
+
+7. THE DAILY 08:00 REMINDER  (PAUSED FOR NOW)
+---------------------------------------------------------------------
+
+  ** The automatic morning message is switched off for now. Send /due
+     whenever you want the list. The rest of this section describes
+     how it works if it's switched back on. **
+
+Every morning at 08:00, without you asking, the bot sends both
+founders the "Due soon" message. It's the same as /due:
+
+  📌 Due today         - tasks that need finishing today
+  📤 Posting today     - social media posts going out today
+  🔜 Due tomorrow      - tasks due tomorrow
+  📤 Posting tomorrow  - social media posts going out tomorrow
+  ⚠️ Older overdue     - how many older tasks are still late
+
+So every task is flagged TWICE: the morning before it's due, and on
+the morning it's due. For example, a task due on Friday shows up in
+Thursday's message under "Due tomorrow" and in Friday's message under
+"Due today".
+
+Finished tasks and posts are left out. If nothing is due, the message
+says "Nothing due today or tomorrow. 🎉"
+
+Sometimes the morning message is SHORTER and only shows the numbers,
+e.g. "3 items are due today and 2 due tomorrow. Reply /due to see the
+full list." That happens when you haven't messaged the bot in the
+last 24 hours (section 6). Just reply /due and the full list
+arrives.
+
+
+8. TIPS
 ---------------------------------------------------------------------
 
   ★ Keep /remind automatic: chat with the team from the WhatsApp
@@ -252,14 +242,14 @@ Good to know:
   ★ Pin the chat and save the number as "Ops Bot".
 
 
-8. THE BOT IS ONLY AS GOOD AS CLICKUP
+9. THE BOT IS ONLY AS GOOD AS CLICKUP
 ---------------------------------------------------------------------
 
 The bot reads ClickUp live every time you ask, so what it shows
 depends on how ClickUp is kept. Please make sure the team:
 
   - Gives every task a DUE DATE. Tasks with no due date never appear
-    in the reminder or the calendar. They only appear in /<name> and
+    in /due, /remind or the calendar. They only appear in /<name> and
     in the team table.
   - ASSIGNS every task to someone. Otherwise it shows as
     "Unassigned".
@@ -278,7 +268,7 @@ What the words mean:
 Changes made in ClickUp can take up to a minute to show in the bot.
 
 
-9. GOOD TO KNOW
+10. GOOD TO KNOW
 ---------------------------------------------------------------------
 
   - Long replies (like /update) can arrive as several messages in a
@@ -293,7 +283,7 @@ Changes made in ClickUp can take up to a minute to show in the bot.
     every time.
 
 
-10. IF SOMETHING GOES WRONG
+11. IF SOMETHING GOES WRONG
 ---------------------------------------------------------------------
 
   No reply at all
@@ -308,9 +298,13 @@ Changes made in ClickUp can take up to a minute to show in the bot.
   "I don't recognise /..."
     -> The name wasn't found. Send /team to see the right commands.
 
-  Didn't get the 08:00 message
-    -> If the server was restarting or down at exactly 08:00, that
-       day's reminder is skipped. Send /due to get it now.
+  /remind keeps giving a link instead of sending
+    -> That person hasn't messaged the business number in the last
+       24 hours. Send them the link from the WhatsApp Business app.
+       Once they reply, /remind sends by itself again.
+
+  "No WhatsApp number saved for ..."
+    -> Ask whoever looks after the bot to add their number.
 
   A task is missing from the list
     -> Check it in ClickUp: does it have a due date, and is it still
