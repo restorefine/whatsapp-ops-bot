@@ -291,3 +291,47 @@ func TestCloudClientOutsideWindowIsNotRetried(t *testing.T) {
 		t.Fatalf("made %d calls, want 1", calls.Load())
 	}
 }
+
+func TestWebhookNotesTeamMessagesWithoutAnswering(t *testing.T) {
+	const member = "447700900456"
+	rec := &recorder{done: make(chan struct{}, 10)}
+	contacts := NewContacts()
+	w := NewWebhook(WebhookConfig{AppSecret: secret, OwnerNumbers: []string{owner}, TeamNumbers: []string{member}, Contacts: contacts}, rec, quiet)
+	w.Start(context.Background())
+
+	for i, from := range []string{member, "15550001111", owner} {
+		body := fixture(t, from, "wamid.team"+string(rune('0'+i)), "ok")
+		if code := post(w, body, Sign(secret, body)); code != http.StatusOK {
+			t.Fatalf("status %d", code)
+		}
+	}
+	w.Stop()
+
+	if len(rec.msgs) != 1 || rec.msgs[0].From != owner {
+		t.Fatalf("only the owner's message should be processed, got %+v", rec.msgs)
+	}
+	// The fixture's timestamp is 1790000000.
+	if last, ok := contacts.LastMessage(member); !ok || !last.Equal(time.Unix(1790000000, 0)) {
+		t.Errorf("team member last message = %v, %v", last, ok)
+	}
+	if _, ok := contacts.LastMessage(owner); !ok {
+		t.Error("owner's message should be recorded too")
+	}
+	if _, ok := contacts.LastMessage("15550001111"); ok {
+		t.Error("unknown numbers must not be recorded")
+	}
+}
+
+func TestSentAt(t *testing.T) {
+	now := time.Unix(2000, 0)
+	for ts, want := range map[string]time.Time{
+		"1500": time.Unix(1500, 0),
+		"":     now,
+		"abc":  now,
+		"3000": now, // in the future
+	} {
+		if got := sentAt(ts, now); !got.Equal(want) {
+			t.Errorf("sentAt(%q) = %v, want %v", ts, got, want)
+		}
+	}
+}

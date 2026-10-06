@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -28,8 +29,10 @@ type Processor interface {
 type WebhookConfig struct {
 	VerifyToken   string
 	AppSecret     string
-	OwnerNumbers  []string // only these senders get a reply
-	PhoneNumberID string   // optional; when set, events for other numbers are ignored
+	OwnerNumbers  []string  // only these senders get a reply
+	TeamNumbers   []string  // messages from these are noted in Contacts but never answered
+	Contacts      *Contacts // optional; records when owners and team last messaged
+	PhoneNumberID string    // optional; when set, events for other numbers are ignored
 	Workers       int
 	QueueSize     int
 	DedupeTTL     time.Duration
@@ -147,7 +150,9 @@ func (w *Webhook) Receive(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-// extract returns the owner's new messages from a webhook payload.
+// extract returns the owners' new messages from a webhook payload. Messages
+// from team members only update Contacts: they are usually chatting with the
+// founders on the shared business number, so the bot stays quiet.
 func (w *Webhook) extract(p payload) []InboundMessage {
 	var out []InboundMessage
 	for _, entry := range p.Entry {
@@ -165,8 +170,16 @@ func (w *Webhook) extract(p payload) []InboundMessage {
 				w.log.Debug("webhook: ignoring status events", "count", len(v.Statuses))
 			}
 			for _, m := range v.Messages {
-				if !slices.Contains(w.cfg.OwnerNumbers, m.From) {
-					w.log.Debug("webhook: ignoring message from non-owner")
+				isOwner := slices.Contains(w.cfg.OwnerNumbers, m.From)
+				if !isOwner && !slices.Contains(w.cfg.TeamNumbers, m.From) {
+					w.log.Debug("webhook: ignoring message from unknown number")
+					continue
+				}
+				if w.cfg.Contacts != nil {
+					w.cfg.Contacts.Record(m.From, sentAt(m.Timestamp, time.Now()))
+				}
+				if !isOwner {
+					w.log.Debug("webhook: noted message from team member")
 					continue
 				}
 				if m.ID == "" || !w.seen.add(m.ID) {
@@ -191,10 +204,11 @@ type payload struct {
 					PhoneNumberID string `json:"phone_number_id"`
 				} `json:"metadata"`
 				Messages []struct {
-					From string `json:"from"`
-					ID   string `json:"id"`
-					Type string `json:"type"`
-					Text struct {
+					From      string `json:"from"`
+					ID        string `json:"id"`
+					Timestamp string `json:"timestamp"` // Unix seconds
+					Type      string `json:"type"`
+					Text      struct {
 						Body string `json:"body"`
 					} `json:"text"`
 				} `json:"messages"`
@@ -202,6 +216,16 @@ type payload struct {
 			} `json:"value"`
 		} `json:"changes"`
 	} `json:"entry"`
+}
+
+// sentAt is when a message was sent, from its Unix timestamp. It falls back to
+// now when the timestamp is missing or in the future.
+func sentAt(ts string, now time.Time) time.Time {
+	sec, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil || sec <= 0 || time.Unix(sec, 0).After(now) {
+		return now
+	}
+	return time.Unix(sec, 0)
 }
 
 // seenSet remembers message IDs for a while so Meta's redeliveries are ignored.

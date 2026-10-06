@@ -74,3 +74,23 @@ func TestLoadInvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadTeamNumbers(t *testing.T) {
+	env := validEnv()
+	env["TEAM_WA_NUMBERS"] = " Sunil = +447700900123, sunil paudel=9779812345678 ,"
+	c, err := Load(envFrom(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []TeamContact{{"sunil", "447700900123"}, {"sunil paudel", "9779812345678"}}
+	if len(c.Team) != 2 || c.Team[0] != want[0] || c.Team[1] != want[1] {
+		t.Errorf("team = %+v, want %+v", c.Team, want)
+	}
+
+	for _, bad := range []string{"sunil", "=447700900123", "sunil=07700 900123"} {
+		env["TEAM_WA_NUMBERS"] = bad
+		if _, err := Load(envFrom(env)); err == nil || !strings.Contains(err.Error(), "TEAM_WA_NUMBERS") {
+			t.Errorf("%q: expected TEAM_WA_NUMBERS error, got %v", bad, err)
+		}
+	}
+}

@@ -57,10 +57,20 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		messenger = whatsapp.NewCloudClient(cfg.WAAPIBaseURL, cfg.WAGraphVersion, cfg.WAPhoneNumberID, cfg.WAToken, log)
 	}
 
+	contacts := whatsapp.NewContacts()
+	var team []commands.Contact
+	var teamNumbers []string
+	for _, c := range cfg.Team {
+		team = append(team, commands.Contact{Name: c.Name, Number: c.Number})
+		teamNumbers = append(teamNumbers, c.Number)
+	}
+
 	router := &commands.Router{
 		ClickUp:   clickup.NewHTTPClient(cfg.ClickUpBaseURL, cfg.ClickUpToken, cfg.ClickUpTeamID, log),
 		Messenger: messenger,
 		Uploads:   cfg.UploadsFolder,
+		Team:      team,
+		Contacts:  contacts,
 		Loc:       cfg.Location,
 		Now:       time.Now,
 		Log:       log,
@@ -70,6 +80,8 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		VerifyToken:   cfg.WAVerifyToken,
 		AppSecret:     cfg.WAAppSecret,
 		OwnerNumbers:  cfg.OwnerNumbers,
+		TeamNumbers:   teamNumbers,
+		Contacts:      contacts,
 		PhoneNumberID: cfg.WAPhoneNumberID,
 	}, router, log)
 	// Workers get their own context so in-flight replies can finish during shutdown.

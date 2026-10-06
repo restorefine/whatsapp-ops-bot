@@ -28,8 +28,10 @@ replies to nobody else.
 
   - If anyone else messages the business number, the bot ignores them
     completely. They get no reply and see none of our information.
-  - Team members are NEVER messaged by the bot. Their names appear in
-    the lists only so you can see who a task belongs to.
+  - The bot never replies to team members. It only messages them when
+    a founder sends /remind (see below). It does quietly note WHEN
+    they last messaged the business number, so it knows whether it
+    can message them for free.
   - The bot only reads ClickUp. It never changes, creates or deletes
     anything there.
 
@@ -43,7 +45,7 @@ Type any of these into the chat and send it.
             Lists every unfinished task and every social media post
             due today and tomorrow, with who is on each one. It ends
             with a count of older tasks that are still overdue.
-            This is the same message you get every morning at 08:00.
+            (The automatic 08:00 version is paused for now. See section 5.)
             (/today does the same thing.)
 
   /update   The full monthly overview
@@ -70,6 +72,13 @@ Type any of these into the chat and send it.
             Shows their numbers, then their overdue tasks, their open
             tasks grouped by status, and what they finished this month.
 
+  /remind <name>
+            Sends that person their tasks due TODAY, for example:
+            /remind sunil
+            The message ends with "Reply OK to confirm you've seen
+            this". If they have nothing due today, nothing is sent.
+            It never costs money. See section 6 for how.
+
   /team     Everyone in the ClickUp workspace, with the exact command
             to type for each person. Use this if you're not sure how
             to spell someone's name.
@@ -93,8 +102,12 @@ Type any of these into the chat and send it.
     "I only understand text commands".
 
 
-5. THE DAILY 08:00 REMINDER
+5. THE DAILY 08:00 REMINDER  (PAUSED FOR NOW)
 ---------------------------------------------------------------------
+
+  ** The automatic morning message is switched off for now. Send /due
+     whenever you want the list. The rest of this section describes
+     how it works if it's switched back on. **
 
 Every morning at 08:00, without you asking, the bot sends both
 founders the "Due soon" message. It's the same as /due:
@@ -149,6 +162,18 @@ How WhatsApp charges businesses:
     - Haven't messaged it for a while? You get the short version at
       08:00 (a few pence). Reply /due for the full list. Free.
 
+/remind is ALWAYS free:
+
+  - If the person has messaged the business number in the last 24
+    hours (including normal chats with you in the WhatsApp Business
+    app), the bot sends the reminder itself.
+    You see: "✅ Sent Sunil a reminder: 3 tasks due today."
+  - If they haven't, the bot does NOT message them. It sends YOU a
+    link instead. Tap it, WhatsApp opens their chat with the reminder
+    already typed, and you press send.
+    Tip: send it from the WhatsApp Business app. When they reply "OK",
+    their 24 hours start, and the next /remind goes out by itself.
+
 Nothing else costs money on the WhatsApp side. Your normal phone data
 applies, as with any WhatsApp chat.
 
@@ -160,7 +185,7 @@ applies, as with any WhatsApp chat.
     afternoon. That keeps your window open, so the next morning's full
     reminder is free.
 
-  ★ Morning routine: read the 08:00 message, then send /<name> for
+  ★ Morning routine: send /due, then send /<name> for
     anyone who has a lot due or a lot overdue.
 
   ★ Weekly check: send /update once a week (e.g. Monday morning) to
@@ -243,15 +268,15 @@ Changes made in ClickUp can take up to a minute to show in the bot.
 =====================================================================
 QUICK CARD (screenshot this)
 
-  /due                                            today + tomorrow (also sent at 08:00 every day)
+  /due                                            today + tomorrow
   /update                                         full monthly overview
   /uploads                                        this month's social media posts
   /uploads next                                   next month's social media posts
   /sunil, /arpan, /himal, /sagun, /sonam          one person's work (use any name)
+  /remind sunil                                   send Sunil his tasks due today (always free)
   /team                                           everyone + their command
   /help                                           list of commands
 
   Messaging the bot and its replies: FREE
-  08:00 reminder: FREE if you messaged the bot in the last 24 hours
-  Tip: send one command a day to keep the morning reminder free.
+  /remind: always FREE
 =====================================================================

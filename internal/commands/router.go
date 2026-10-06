@@ -26,6 +26,9 @@ Social media posting calendar. _/uploads next_ shows next month
 */<name>*
 One person's tasks, e.g. _/sunil_
 
+*/remind <name>*
+Send someone their tasks due today, e.g. _/remind sunil_
+
 */team*
 Team members and their commands
 
@@ -41,6 +44,7 @@ var reserved = map[string]bool{
 	"team": true, "members": true,
 	"uploads": true, "upload": true, "posts": true,
 	"due": true, "today": true, "reminder": true,
+	"remind": true,
 }
 
 // Router turns inbound messages into replies. It depends only on interfaces.
@@ -48,6 +52,8 @@ type Router struct {
 	ClickUp   clickup.Client
 	Messenger whatsapp.Messenger
 	Uploads   string // folder name of the posting calendar; empty disables /uploads
+	Team      []Contact
+	Contacts  *whatsapp.Contacts // when each number last messaged; nil treats every window as closed
 	Loc       *time.Location
 	Now       func() time.Time
 	Log       *slog.Logger
@@ -79,6 +85,8 @@ func (r *Router) Reply(ctx context.Context, text string) string {
 		return r.update(ctx)
 	case "due", "today", "reminder":
 		return r.due(ctx)
+	case "remind":
+		return r.remind(ctx, cmd.Args)
 	case "team", "members":
 		return r.team(ctx)
 	case "uploads", "upload", "posts":

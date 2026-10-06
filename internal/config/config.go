@@ -24,7 +24,8 @@ type Config struct {
 	WAVerifyToken   string
 	WAAPIBaseURL    string
 	WADryRun        bool
-	OwnerNumbers    []string // OWNER_WA_NUMBER, comma-separated
+	OwnerNumbers    []string      // OWNER_WA_NUMBER, comma-separated
+	Team            []TeamContact // TEAM_WA_NUMBERS: who /remind can message
 
 	ClickUpToken   string
 	ClickUpTeamID  string
@@ -36,6 +37,13 @@ type Config struct {
 	ReminderMinute   int
 	ReminderTemplate string // used when an owner's 24 hour window is closed; empty skips them
 	ReminderLang     string
+}
+
+// TeamContact is a team member's WhatsApp number. Name is matched against
+// ClickUp member names the same way /<name> is.
+type TeamContact struct {
+	Name   string // lower case, e.g. "sunil"
+	Number string // digits only, with country code
 }
 
 var (
@@ -75,7 +83,7 @@ func Load(getenv func(string) string) (*Config, error) {
 
 	c.ReminderTemplate = get("REMINDER_TEMPLATE", "")
 	c.ReminderLang = get("REMINDER_TEMPLATE_LANG", "en")
-	if rt := get("REMINDER_TIME", "08:00"); !strings.EqualFold(rt, "off") {
+	if rt := get("REMINDER_TIME", "off"); !strings.EqualFold(rt, "off") {
 		t, err := time.Parse("15:04", rt)
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("REMINDER_TIME %q must be HH:MM (24 hour) or off", rt))
@@ -104,6 +112,7 @@ func Load(getenv func(string) string) (*Config, error) {
 			c.OwnerNumbers = append(c.OwnerNumbers, n)
 		}
 	}
+	c.Team, problems = parseTeam(get("TEAM_WA_NUMBERS", ""), problems)
 	c.ClickUpToken = require("CLICKUP_TOKEN")
 	c.ClickUpTeamID = require("CLICKUP_TEAM_ID")
 
@@ -133,4 +142,22 @@ func Load(getenv func(string) string) (*Config, error) {
 		return nil, errors.New("invalid configuration:\n  - " + strings.Join(problems, "\n  - "))
 	}
 	return c, nil
+}
+
+// parseTeam reads "sunil=447700900123,himal=9779812345678".
+func parseTeam(v string, problems []string) ([]TeamContact, []string) {
+	var team []TeamContact
+	for _, entry := range strings.Split(v, ",") {
+		if entry = strings.TrimSpace(entry); entry == "" {
+			continue
+		}
+		name, number, _ := strings.Cut(entry, "=")
+		name = strings.ToLower(strings.Join(strings.Fields(name), " "))
+		number = strings.TrimPrefix(strings.TrimSpace(number), "+")
+		if name == "" || !ownerPattern.MatchString(number) {
+			return nil, append(problems, fmt.Sprintf("TEAM_WA_NUMBERS entry %q must be name=number, digits only with country code, e.g. sunil=447700900123", entry))
+		}
+		team = append(team, TeamContact{Name: name, Number: number})
+	}
+	return team, problems
 }

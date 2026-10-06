@@ -10,6 +10,7 @@ A private, self-hosted WhatsApp bot that answers your commands with live data fr
 | `/due` | Everything open that's due today and tomorrow: team tasks and social posts in separate sections, plus a count of older overdue work. `/today` works too. This is also the daily reminder. |
 | `/uploads` | The social media posting calendar for this month, one post per line, with posted, upcoming and missed counts. It also lists earlier posts never marked as posted. `/uploads next` shows next month. |
 | `/<name>` | One person's numbers, then overdue tasks, open tasks by status and what they completed this month. `/sunil`, `/sunil paudel`, or a prefix like `/su` all work. If a name is ambiguous, the bot lists the matches. |
+| `/remind <name>` | Sends that person their open tasks due today, e.g. `/remind sunil`. It never costs money: see [Reminding the team](#reminding-the-team). |
 | `/team` | Everyone in the workspace, and the exact command for each person. |
 | `/help` | The command list. |
 
@@ -57,7 +58,7 @@ Upcoming    106
 
 ## Daily reminder
 
-Every day at `REMINDER_TIME` (default `08:00`, in `TZ`) each owner gets the `/due` report. Set `REMINDER_TIME=off` to turn it off. It runs inside the app, so nothing else needs scheduling. If the app is down at that minute, that day's reminder is skipped.
+**Paused by default.** `REMINDER_TIME` defaults to `off`. Set it to a time such as `08:00` (in `TZ`) and every day at that time each owner gets the `/due` report. It runs inside the app, so nothing else needs scheduling. If the app is down at that minute, that day's reminder is skipped.
 
 WhatsApp only allows free-form messages within 24 hours of the owner's last message to the bot. If an owner has messaged the bot in that time, they get the full list for free. If not, the bot sends the template named in `REMINDER_TEMPLATE` instead. It carries the counts and asks them to reply `/due`, and that reply reopens the window. With no template set, that owner is skipped for the day.
 
@@ -69,6 +70,17 @@ Good morning. {{1}} item(s) are due today and {{2}} due tomorrow. Reply /due to 
 
 Once Meta approves it, set `REMINDER_TEMPLATE=due_reminder`. Template messages are charged per message (see Cost).
 
+## Reminding the team
+
+`/remind sunil` sends Sunil a WhatsApp message listing his open tasks due today, ending with "Reply OK to confirm you've seen this". If nothing is due, nothing is sent.
+
+The bot can only message someone for free if they messaged the business number in the last 24 hours. The bot notes every message that team members in `TEAM_WA_NUMBERS` send to the business number, including their normal chats with the founders in the WhatsApp Business app. It never replies to them. Then:
+
+- **Sunil messaged in the last 24 hours:** the bot sends the reminder directly and replies "✅ Sent Sunil a reminder".
+- **He hasn't:** the bot sends him nothing, because that would need a paid template. It replies to you with a `wa.me` link that opens Sunil's chat with the reminder already typed. Tap it and press send. Send it from the WhatsApp Business app, so his reply reaches the bot and the next `/remind` goes out automatically.
+
+Set `TEAM_WA_NUMBERS` to `name=number` pairs, e.g. `sunil=447700900123,himal=9779812345678`. Each name must pick out exactly one ClickUp member, the same way `/<name>` does. The bot keeps the last-message times in memory, so after a restart it offers links until each person messages again.
+
 ## How it works
 
 ```
@@ -77,7 +89,7 @@ WhatsApp ──► Meta Cloud API ──► Caddy (HTTPS) ──► app:8080 /we
                   └──────── reply (Graph API) ◄─────────┘
 ```
 
-- `POST /webhook` checks the `X-Hub-Signature-256` HMAC of the raw body (401 if it's wrong), drops anyone not listed in `OWNER_WA_NUMBER`, ignores repeat deliveries of the same message ID, returns 200 at once, and handles the message on a background worker.
+- `POST /webhook` checks the `X-Hub-Signature-256` HMAC of the raw body (401 if it's wrong), notes the time of messages from `TEAM_WA_NUMBERS` without replying, drops anyone else not listed in `OWNER_WA_NUMBER`, ignores repeat deliveries of the same message ID, returns 200 at once, and handles the message on a background worker.
 - ClickUp calls use `GET /team/{id}/task` with pagination, a 60 second cache, and back-off on HTTP 429.
 - Code layout: `internal/config`, `internal/whatsapp` (Messenger interface, Cloud API client, webhook), `internal/clickup` (client and `Client` interface), `internal/commands` (parser and reports, depending only on interfaces).
 
@@ -168,14 +180,14 @@ To update: `git pull && docker compose up -d --build`.
 ## Security
 
 - **Signature check:** every `POST /webhook` must carry a valid `X-Hub-Signature-256` HMAC of the raw body, signed with your app secret and compared in constant time. Anything else gets 401.
-- **Owner allowlist:** messages from any number not listed in `OWNER_WA_NUMBER` are silently ignored, with no reply and no ClickUp call.
+- **Owner allowlist:** messages from any number not listed in `OWNER_WA_NUMBER` get no reply and no ClickUp call. For numbers in `TEAM_WA_NUMBERS`, the bot only notes the time, so `/remind` knows whose window is open.
 - **Secrets:** they live only in `.env` (git-ignored and excluded from the image). Tokens, the app secret and message bodies are never logged at info level.
 - **Exposure:** the app container isn't published to the host. Caddy exposes only `/webhook` and `/healthz` and returns 404 for everything else. Keep the firewall to 22, 80 and 443.
 - **Container:** runs as a non-root user on distroless with no shell.
 
 ## Cost
 
-Meta charges per delivered **template** message, by category and country. Free-form replies inside the 24 hour customer service window are currently free. Command replies are always free. The daily reminder is free when the owner messaged the bot in the last 24 hours. Otherwise it goes out as a utility template, a small per-message charge. Pricing changes, so check Meta's current rate card: <https://developers.facebook.com/docs/whatsapp/pricing>. ClickUp API access is included in every plan.
+Meta charges per delivered **template** message, by category and country. Free-form replies inside the 24 hour customer service window are currently free. Command replies are always free. `/remind` is always free: it only messages a team member directly inside their 24 hour window, and otherwise gives you a link to send it yourself. The daily reminder is free when the owner messaged the bot in the last 24 hours. Otherwise it goes out as a utility template, a small per-message charge. Pricing changes, so check Meta's current rate card: <https://developers.facebook.com/docs/whatsapp/pricing>. ClickUp API access is included in every plan.
 
 ## Assumptions
 
