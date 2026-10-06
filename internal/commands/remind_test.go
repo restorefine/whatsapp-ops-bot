@@ -104,6 +104,8 @@ func TestRemindEdgeCases(t *testing.T) {
 		{"/remind zed", "I don't recognise *zed*"},
 		{"/remind alice", "matches 2 people"},
 		{"/remind anna", "No WhatsApp number saved for Anna Lee"},
+		{"/Reminder Anna", "No WhatsApp number saved for Anna Lee"},
+		{"/reminder", "Due soon"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {

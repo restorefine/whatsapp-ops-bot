@@ -27,7 +27,7 @@ Social media posting calendar. _/uploads next_ shows next month
 One person's tasks, e.g. _/sunil_
 
 */remind <name>*
-Send someone their tasks due today, e.g. _/remind sunil_
+Send someone their tasks due today, e.g. _/remind sunil_ (or _/reminder sunil_)
 
 */team*
 Team members and their commands
@@ -78,6 +78,9 @@ func (r *Router) Process(ctx context.Context, msg whatsapp.InboundMessage) {
 // Reply returns the response text for a message.
 func (r *Router) Reply(ctx context.Context, text string) string {
 	cmd := Parse(text)
+	if cmd.Name == "reminder" && cmd.Args != "" {
+		cmd.Name = "remind" // "/reminder sunil" means /remind; bare "/reminder" stays /due
+	}
 	switch cmd.Name {
 	case "", "help", "start", "menu":
 		return HelpText

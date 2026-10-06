@@ -10,7 +10,7 @@ A private, self-hosted WhatsApp bot that answers your commands with live data fr
 | `/due` | Everything open that's due today and tomorrow: team tasks and social posts in separate sections, plus a count of older overdue work. `/today` works too. This is also the daily reminder. |
 | `/uploads` | The social media posting calendar for this month, one post per line, with posted, upcoming and missed counts. It also lists earlier posts never marked as posted. `/uploads next` shows next month. |
 | `/<name>` | One person's numbers, then overdue tasks, open tasks by status and what they completed this month. `/sunil`, `/sunil paudel`, or a prefix like `/su` all work. If a name is ambiguous, the bot lists the matches. |
-| `/remind <name>` | Sends that person their open tasks due today, e.g. `/remind sunil`. It never costs money: see [Reminding the team](#reminding-the-team). |
+| `/remind <name>` | Sends that person their open tasks due today, e.g. `/remind sunil` (`/reminder sunil` works too; bare `/reminder` is `/due`). It never costs money: see [Reminding the team](#reminding-the-team). |
 | `/team` | Everyone in the workspace, and the exact command for each person. |
 | `/help` | The command list. |
 

@@ -74,10 +74,8 @@ Type any of these into the chat and send it.
 
   /remind <name>
             Sends that person their tasks due TODAY, for example:
-            /remind sunil
-            The message ends with "Reply OK to confirm you've seen
-            this". If they have nothing due today, nothing is sent.
-            It never costs money. See section 6 for how.
+            /remind sunil     (/reminder sunil works too)
+            Always free. Section 6 explains how it works step by step.
 
   /team     Everyone in the ClickUp workspace, with the exact command
             to type for each person. Use this if you're not sure how
@@ -162,28 +160,82 @@ How WhatsApp charges businesses:
     - Haven't messaged it for a while? You get the short version at
       08:00 (a few pence). Reply /due for the full list. Free.
 
-/remind is ALWAYS free:
-
-  - If the person has messaged the business number in the last 24
-    hours (including normal chats with you in the WhatsApp Business
-    app), the bot sends the reminder itself.
-    You see: "✅ Sent Sunil a reminder: 3 tasks due today."
-  - If they haven't, the bot does NOT message them. It sends YOU a
-    link instead. Tap it, WhatsApp opens their chat with the reminder
-    already typed, and you press send.
-    Tip: send it from the WhatsApp Business app. When they reply "OK",
-    their 24 hours start, and the next /remind goes out by itself.
+/remind is ALWAYS free. See "Reminding a team member" below.
 
 Nothing else costs money on the WhatsApp side. Your normal phone data
 applies, as with any WhatsApp chat.
 
 
+REMINDING A TEAM MEMBER  (/remind <name>)
+---------------------------------------------------------------------
+
+Use this to nudge someone about the tasks they must finish TODAY.
+
+  Step 1. Send the bot:   /remind sunil
+          (/reminder sunil, /remind su and /remind sunil paudel
+          all work too.)
+
+  Step 2. The bot looks up Sunil's unfinished tasks due today in
+          ClickUp. It replies in one of three ways:
+
+  A) "✅ Sent Sunil a reminder: 3 tasks due today."
+     Done. The bot messaged Sunil itself from the business number.
+     This happens when Sunil has messaged the business number in the
+     last 24 hours, including any normal chat with you in the
+     WhatsApp Business app.
+
+  B) "Sunil hasn't messaged the business number in the last 24
+     hours... Tap to send it yourself: https://wa.me/..."
+     The bot did NOT message Sunil, because WhatsApp would charge
+     for that. Instead:
+       1. Tap the link.
+       2. If your phone asks which WhatsApp to use, pick WhatsApp
+          BUSINESS (our business number).
+       3. Sunil's chat opens with the reminder already typed.
+          Press send.
+     When Sunil replies "OK", the bot sees it, and for the next
+     24 hours /remind sunil goes out automatically (reply A).
+
+  C) "Sunil has nothing due today, so no reminder was sent. 🎉"
+     Nothing to do.
+
+What Sunil receives:
+
+  Hi Sunil 👋
+  *Due today · Tue 6 Oct*
+
+  • Fix checkout bug
+     _In Progress_
+  • 📤 Zaks: Diwali reel
+     _Post_
+
+  Reply *OK* to confirm you've seen this.
+
+  - Only tasks due TODAY that aren't marked complete. Overdue tasks
+    and tomorrow's tasks are left out.
+  - At most 10 tasks, then "+N more".
+  - It only reminds when you ask. Nothing is sent automatically.
+
+Other replies:
+  - "Send /remind <name>..."  You didn't give a name. The reply lists
+    everyone whose number is saved.
+  - "No WhatsApp number saved for ..."  Ask whoever looks after the
+    bot to add that person's number to TEAM_WA_NUMBERS.
+  - "... matches 2 people. Which one?"  Use the exact command shown.
+
+Good to know:
+  - The bot never replies to team members. If Sunil sends the bot
+    a command, nothing happens. It only notes the time he messaged.
+  - After the bot restarts, it has forgotten who messaged recently,
+    so you'll get the link (reply B) until each person messages again.
+
+
 7. TIPS
 ---------------------------------------------------------------------
 
-  ★ Keep it free: send the bot one command each day, e.g. /due in the
-    afternoon. That keeps your window open, so the next morning's full
-    reminder is free.
+  ★ Keep /remind automatic: chat with the team from the WhatsApp
+    Business app. Every time they reply, their 24 hours restart, so
+    /remind goes out by itself instead of giving you a link.
 
   ★ Morning routine: send /due, then send /<name> for
     anyone who has a lot due or a lot overdue.
