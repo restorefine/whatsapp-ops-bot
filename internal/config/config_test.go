@@ -26,8 +26,11 @@ func TestLoadValid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(c.OwnerNumbers) != 2 || c.OwnerNumbers[0] != "9779812345678" || c.OwnerNumbers[1] != "447700900123" {
-		t.Errorf("owners = %q, want both numbers with plus sign and spaces stripped", c.OwnerNumbers)
+	if n := c.AdminNumbers(); len(n) != 2 || n[0] != "9779812345678" || n[1] != "447700900123" {
+		t.Errorf("admins = %q, want both legacy owner numbers with plus sign and spaces stripped", n)
+	}
+	if c.TZLabel != "UK" || c.SecondTZ == nil || c.SecondTZ.String() != "Asia/Kathmandu" || c.SecondLabel != "Nepal" {
+		t.Errorf("time zone labels = %q, %v, %q", c.TZLabel, c.SecondTZ, c.SecondLabel)
 	}
 	if c.WAGraphVersion != "v25.0" || c.Location.String() != "Europe/London" || c.HTTPAddr != ":8080" {
 		t.Errorf("unexpected defaults: %+v", c)
@@ -39,7 +42,7 @@ func TestLoadListsEveryMissingVariable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	for _, key := range []string{"WA_PHONE_NUMBER_ID", "WA_TOKEN", "WA_APP_SECRET", "WA_VERIFY_TOKEN", "OWNER_WA_NUMBER", "CLICKUP_TOKEN", "CLICKUP_TEAM_ID"} {
+	for _, key := range []string{"WA_PHONE_NUMBER_ID", "WA_TOKEN", "WA_APP_SECRET", "WA_VERIFY_TOKEN", "ADMIN_WA_NUMBERS", "CLICKUP_TOKEN", "CLICKUP_TEAM_ID"} {
 		if !strings.Contains(err.Error(), key) {
 			t.Errorf("error does not mention %s:\n%s", key, err)
 		}
@@ -77,12 +80,13 @@ func TestLoadInvalidValues(t *testing.T) {
 
 func TestLoadTeamNumbers(t *testing.T) {
 	env := validEnv()
+	env["OWNER_WA_NUMBER"] = "447700900999"
 	env["TEAM_WA_NUMBERS"] = " Sunil = +447700900123, sunil paudel=9779812345678 ,"
 	c, err := Load(envFrom(env))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []TeamContact{{"sunil", "447700900123"}, {"sunil paudel", "9779812345678"}}
+	want := []Person{{"sunil", "447700900123"}, {"sunil paudel", "9779812345678"}}
 	if len(c.Team) != 2 || c.Team[0] != want[0] || c.Team[1] != want[1] {
 		t.Errorf("team = %+v, want %+v", c.Team, want)
 	}
@@ -92,5 +96,35 @@ func TestLoadTeamNumbers(t *testing.T) {
 		if _, err := Load(envFrom(env)); err == nil || !strings.Contains(err.Error(), "TEAM_WA_NUMBERS") {
 			t.Errorf("%q: expected TEAM_WA_NUMBERS error, got %v", bad, err)
 		}
+	}
+}
+
+func TestLoadRoles(t *testing.T) {
+	env := validEnv()
+	delete(env, "OWNER_WA_NUMBER")
+	env["ADMIN_WA_NUMBERS"] = "suranjana=9779812378182, 447590990552"
+	env["TEAM_WA_NUMBERS"] = "sagun=9779860906634"
+	c, err := Load(envFrom(env))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Person{{"suranjana", "9779812378182"}, {"", "447590990552"}}
+	if len(c.Admins) != 2 || c.Admins[0] != want[0] || c.Admins[1] != want[1] {
+		t.Errorf("admins = %+v, want %+v", c.Admins, want)
+	}
+
+	env["TEAM_WA_NUMBERS"] = "sagun=9779860906634,suranjana=9779812378182"
+	if _, err := Load(envFrom(env)); err == nil || !strings.Contains(err.Error(), "more than once") {
+		t.Errorf("a number in two roles should be rejected, got %v", err)
+	}
+
+	env["TEAM_WA_NUMBERS"] = "9779860906634"
+	if _, err := Load(envFrom(env)); err == nil || !strings.Contains(err.Error(), "TEAM_WA_NUMBERS") {
+		t.Errorf("team entries need a name, got %v", err)
+	}
+
+	env["TEAM_WA_NUMBERS"], env["SECOND_TZ"] = "", "off"
+	if c, err := Load(envFrom(env)); err != nil || c.SecondTZ != nil {
+		t.Errorf("SECOND_TZ=off: %v, %v", c, err)
 	}
 }

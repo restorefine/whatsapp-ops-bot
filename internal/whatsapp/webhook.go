@@ -29,9 +29,8 @@ type Processor interface {
 type WebhookConfig struct {
 	VerifyToken   string
 	AppSecret     string
-	OwnerNumbers  []string  // only these senders get a reply
-	TeamNumbers   []string  // messages from these are noted in Contacts but never answered
-	Contacts      *Contacts // optional; records when owners and team last messaged
+	Numbers       []string  // admins and team; messages from anyone else are dropped
+	Contacts      *Contacts // optional; records when each of them last messaged
 	PhoneNumberID string    // optional; when set, events for other numbers are ignored
 	Workers       int
 	QueueSize     int
@@ -150,9 +149,9 @@ func (w *Webhook) Receive(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-// extract returns the owners' new messages from a webhook payload. Messages
-// from team members only update Contacts: they are usually chatting with the
-// founders on the shared business number, so the bot stays quiet.
+// extract returns new messages from known numbers. The processor decides
+// what each person may do; it stays quiet on team members' ordinary chat with
+// the founders on the shared business number.
 func (w *Webhook) extract(p payload) []InboundMessage {
 	var out []InboundMessage
 	for _, entry := range p.Entry {
@@ -170,17 +169,12 @@ func (w *Webhook) extract(p payload) []InboundMessage {
 				w.log.Debug("webhook: ignoring status events", "count", len(v.Statuses))
 			}
 			for _, m := range v.Messages {
-				isOwner := slices.Contains(w.cfg.OwnerNumbers, m.From)
-				if !isOwner && !slices.Contains(w.cfg.TeamNumbers, m.From) {
+				if !slices.Contains(w.cfg.Numbers, m.From) {
 					w.log.Debug("webhook: ignoring message from unknown number")
 					continue
 				}
 				if w.cfg.Contacts != nil {
 					w.cfg.Contacts.Record(m.From, sentAt(m.Timestamp, time.Now()))
-				}
-				if !isOwner {
-					w.log.Debug("webhook: noted message from team member")
-					continue
 				}
 				if m.ID == "" || !w.seen.add(m.ID) {
 					w.log.Debug("webhook: duplicate message ignored", "wamid", m.ID)

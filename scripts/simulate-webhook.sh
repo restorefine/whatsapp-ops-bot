@@ -5,7 +5,7 @@
 #   ./scripts/simulate-webhook.sh "/bob" http://localhost:8080/webhook
 #   FROM=15550001111 ./scripts/simulate-webhook.sh "/help"   # a stranger: should be ignored
 #
-# Reads WA_APP_SECRET, OWNER_WA_NUMBER and WA_PHONE_NUMBER_ID from the
+# Reads WA_APP_SECRET, ADMIN_WA_NUMBERS (or OWNER_WA_NUMBER) and WA_PHONE_NUMBER_ID from the
 # environment or from .env in the repo root.
 set -euo pipefail
 
@@ -18,18 +18,20 @@ env_value() {
   if [[ -n "${!key:-}" ]]; then
     printf '%s' "${!key}"
   elif [[ -f "$ROOT/.env" ]]; then
-    grep -E "^${key}=" "$ROOT/.env" | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'
+    { grep -E "^${key}=" "$ROOT/.env" || true; } | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'
   fi
 }
 
 SECRET="$(env_value WA_APP_SECRET)"
-OWNER="$(env_value OWNER_WA_NUMBER)"
-OWNER="${OWNER%%,*}"   # first owner when several are listed
+OWNER="$(env_value ADMIN_WA_NUMBERS)"
+[[ -n "$OWNER" ]] || OWNER="$(env_value OWNER_WA_NUMBER)"
+OWNER="${OWNER%%,*}"   # first admin when several are listed
+OWNER="${OWNER##*=}"   # drop the name in name=number
 OWNER="${OWNER// /}"
 PHONE_ID="$(env_value WA_PHONE_NUMBER_ID)"
 FROM="${FROM:-${OWNER#+}}"
 : "${SECRET:?WA_APP_SECRET is not set}"
-: "${FROM:?OWNER_WA_NUMBER is not set}"
+: "${FROM:?ADMIN_WA_NUMBERS is not set}"
 
 # Escape the text for JSON.
 ESCAPED="$(printf '%s' "$TEXT" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"

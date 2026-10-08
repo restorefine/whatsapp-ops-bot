@@ -129,3 +129,57 @@ func TestRetryAfter(t *testing.T) {
 		}
 	}
 }
+
+func TestDatesNormalise(t *testing.T) {
+	london, _ := time.LoadLocation("Europe/London")
+	ktm, _ := time.LoadLocation("Asia/Kathmandu")
+	d := Dates{Loc: london, SetIn: []*time.Location{london, ktm}}
+	at := func(tm time.Time) Task { return Task{DueDate: &tm} }
+
+	// "Thu 8 Oct" picked in Nepal is stored as 04:00 Nepal = 23:15 Wed in London.
+	nepal := at(time.Date(2026, 10, 8, 4, 0, 0, 0, ktm))
+	d.Normalise(&nepal)
+	if got := nepal.DueDate.In(london); got.Day() != 8 || got.Hour() != 23 || nepal.DueHasTime {
+		t.Errorf("Nepal date-only = %v, has time %v; want end of Thu 8 Oct in London", got, nepal.DueHasTime)
+	}
+
+	uk := at(time.Date(2026, 10, 8, 4, 0, 0, 0, london))
+	d.Normalise(&uk)
+	if got := uk.DueDate.In(london); got.Day() != 8 || got.Hour() != 23 || uk.DueHasTime {
+		t.Errorf("UK date-only = %v", got)
+	}
+
+	timed := at(time.Date(2026, 10, 8, 18, 0, 0, 0, london))
+	d.Normalise(&timed)
+	if !timed.DueHasTime || timed.DueDate.In(london).Hour() != 18 {
+		t.Errorf("timed due date changed: %v", timed.DueDate)
+	}
+}
+
+func TestTasksFilterOnNormalisedDates(t *testing.T) {
+	london, _ := time.LoadLocation("Europe/London")
+	ktm, _ := time.LoadLocation("Asia/Kathmandu")
+	thu := time.Date(2026, 10, 8, 4, 0, 0, 0, ktm).UnixMilli() // date-only Thu 8 Oct, set in Nepal
+	wed := time.Date(2026, 10, 7, 4, 0, 0, 0, ktm).UnixMilli() // date-only Wed 7 Oct
+	var gt string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		gt = r.URL.Query().Get("due_date_gt")
+		fmt.Fprintf(rw, `{"tasks":[{"id":"thu","name":"Thu","status":{"type":"open"},"due_date":"%d"},
+			{"id":"wed","name":"Wed","status":{"type":"open"},"due_date":"%d"}],"last_page":true}`, thu, wed)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.URL, "pk", "42", quiet)
+	c.Dates = Dates{Loc: london, SetIn: []*time.Location{london, ktm}}
+	today := time.Date(2026, 10, 8, 0, 0, 0, 0, london)
+	tasks, err := c.Tasks(context.Background(), TaskFilter{DueAfter: today.Add(-time.Millisecond), DueBefore: today.AddDate(0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != "thu" {
+		t.Fatalf("due today = %+v, want only the Thu task", tasks)
+	}
+	if want := fmt.Sprint(today.Add(-time.Millisecond - shift).UnixMilli()); gt != want {
+		t.Errorf("due_date_gt = %s, want the filter widened to %s", gt, want)
+	}
+}

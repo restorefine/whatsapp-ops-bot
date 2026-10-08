@@ -125,12 +125,13 @@ func RemindMessage(name string, work, uploads []clickup.Task, now time.Time) str
 func (r *Router) remindUsage() string {
 	var b strings.Builder
 	b.WriteString("Send */remind <name>*, e.g. _/remind sunil_. The bot sends that person their tasks due today.")
-	if len(r.Team) == 0 {
+	people := r.people()
+	if len(people) == 0 {
 		b.WriteString("\n\nNo team numbers are saved yet. Add them to TEAM_WA_NUMBERS on the server.")
 		return b.String()
 	}
 	b.WriteString("\n\n*Numbers saved for:*")
-	for _, c := range r.Team {
+	for _, c := range people {
 		fmt.Fprintf(&b, "\n• %s", c.Name)
 	}
 	return b.String()
@@ -138,12 +139,23 @@ func (r *Router) remindUsage() string {
 
 // contactFor finds m's saved number: the entry whose name selects exactly m.
 func (r *Router) contactFor(members []clickup.Member, m clickup.Member) (Contact, bool) {
-	for _, c := range r.Team {
+	for _, c := range r.people() {
 		if found := MatchMembers(members, c.Name); len(found) == 1 && found[0].ID == m.ID {
 			return c, true
 		}
 	}
 	return Contact{}, false
+}
+
+// people are everyone /remind can message: named admins and the team.
+func (r *Router) people() []Contact {
+	var out []Contact
+	for _, c := range append(append([]Contact(nil), r.Admins...), r.Team...) {
+		if c.Name != "" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // windowOpen reports whether number messaged the business number recently

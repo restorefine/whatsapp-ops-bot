@@ -35,7 +35,10 @@ type Task struct {
 	Status      string // e.g. "in progress"
 	StatusType  string // open, custom, done or closed
 	Assignees   []Member
-	DueDate     *time.Time
+	DueDate     *time.Time // a date-only due date is normalised to the end of that day; see Dates
+	DueHasTime  bool       // the due date has a time of day, not just a date
+	HasBrief    bool       // the task has a description
+	ListID      string
 	ListName    string
 	FolderName  string // empty for lists that are not in a folder
 	URL         string
@@ -124,11 +127,13 @@ type apiTask struct {
 	} `json:"status"`
 	Assignees   []apiUser `json:"assignees"`
 	DueDate     msTime    `json:"due_date"`
+	Description string    `json:"description"`
 	DateUpdated msTime    `json:"date_updated"`
 	DateClosed  msTime    `json:"date_closed"`
 	DateDone    msTime    `json:"date_done"`
 	URL         string    `json:"url"`
 	List        struct {
+		ID   string `json:"id"`
 		Name string `json:"name"`
 	} `json:"list"`
 	Folder struct {
@@ -144,6 +149,9 @@ func (a apiTask) task() Task {
 		Status:     a.Status.Status,
 		StatusType: a.Status.Type,
 		DueDate:    a.DueDate.t,
+		DueHasTime: a.DueDate.t != nil,
+		HasBrief:   strings.TrimSpace(a.Description) != "",
+		ListID:     a.List.ID,
 		ListName:   strings.TrimSpace(a.List.Name),
 		URL:        a.URL,
 		DateClosed: a.DateClosed.t,
@@ -174,4 +182,45 @@ type teamsResponse struct {
 			User apiUser `json:"user"`
 		} `json:"members"`
 	} `json:"teams"`
+}
+
+// Status is one of a list's statuses. Type is open, custom, done or closed.
+type Status struct {
+	Name string `json:"status"`
+	Type string `json:"type"`
+}
+
+// Comment is a comment on a task.
+type Comment struct {
+	Author Member
+	Text   string
+	Date   time.Time
+}
+
+// TaskDetail is what a task's details page shows: its description in
+// ClickUp's markdown and its comments, oldest first.
+type TaskDetail struct {
+	Description string
+	Comments    []Comment
+}
+
+type taskDetailResponse struct {
+	MarkdownDescription string `json:"markdown_description"`
+	Description         string `json:"description"`
+}
+
+type commentsResponse struct {
+	Comments []struct {
+		CommentText string  `json:"comment_text"`
+		User        apiUser `json:"user"`
+		Date        msTime  `json:"date"`
+	} `json:"comments"`
+}
+
+type listResponse struct {
+	Statuses []Status `json:"statuses"`
+}
+
+type userResponse struct {
+	User apiUser `json:"user"`
 }

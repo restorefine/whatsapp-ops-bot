@@ -377,7 +377,7 @@ func calendar(b *strings.Builder, tasks []clickup.Task, now time.Time) {
 
 // header writes a bold title and a muted timestamp line.
 func header(b *strings.Builder, title string, now time.Time) {
-	b.WriteString("*" + title + "*\n_" + now.Format("Mon 2 Jan 2006 · 15:04") + "_\n")
+	b.WriteString("*" + title + "*\n_" + now.Format("Mon 2 Jan 2006") + " · " + stamp(now) + "_\n")
 }
 
 func heading(b *strings.Builder, title string, count int) {
@@ -469,15 +469,19 @@ func dueText(t clickup.Task, now time.Time) string {
 		return "No due date"
 	}
 	days := daysBetween(dateOf(now, now.Location()), dateOf(*t.DueDate, now.Location()))
+	at := ""
+	if c := dueClock(t, now); c != "" {
+		at = ", " + c
+	}
 	switch {
 	case days == 0:
-		return "Due today"
+		return "Due today" + at
 	case days == 1:
-		return "Due tomorrow"
+		return "Due tomorrow" + at
 	case days < 0:
-		return "Due " + shortDate(*t.DueDate, now) + " · " + lateText(t, now)
+		return "Due " + shortDate(*t.DueDate, now) + at + " · " + lateText(t, now)
 	default:
-		return "Due " + shortDate(*t.DueDate, now)
+		return "Due " + shortDate(*t.DueDate, now) + at
 	}
 }
 

@@ -1,6 +1,5 @@
 =====================================================================
                     RESTOREFINE OPS BOT - HOW TO USE IT
-                        A guide for the two founders
 =====================================================================
 
 
@@ -23,7 +22,7 @@ WhatsApp and it replies within a few seconds.
 2. WHO CAN USE IT?
 ---------------------------------------------------------------------
 
-Only the two founders. The bot knows your two personal numbers and
+Founders & Project Manager . The bot knows your 3 personal numbers and
 replies to nobody else.
 
   - If anyone else messages the business number, the bot ignores them
@@ -319,7 +318,7 @@ QUICK CARD (screenshot this)
   /uploads                                        this month's social media posts
   /uploads next                                   next month's social media posts
   /sunil, /arpan, /himal, /sagun, /sonam          one person's work (use any name)
-  /remind sunil                                   send Sunil his tasks due today (always free)
+  /remind sunil  or any oher names                send Sunil and everyone their tasks due today (always free)
   /team                                           everyone + their command
   /help                                           list of commands
 

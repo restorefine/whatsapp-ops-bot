@@ -125,7 +125,7 @@ func (r *recorder) Process(_ context.Context, m InboundMessage) {
 
 func newTestWebhook(t *testing.T) (*Webhook, *recorder) {
 	rec := &recorder{done: make(chan struct{}, 10)}
-	w := NewWebhook(WebhookConfig{VerifyToken: "vt", AppSecret: secret, OwnerNumbers: []string{owner, owner2}, PhoneNumberID: "111"}, rec, quiet)
+	w := NewWebhook(WebhookConfig{VerifyToken: "vt", AppSecret: secret, Numbers: []string{owner, owner2}, PhoneNumberID: "111"}, rec, quiet)
 	w.Start(context.Background())
 	t.Cleanup(w.Stop)
 	return w, rec
@@ -292,11 +292,11 @@ func TestCloudClientOutsideWindowIsNotRetried(t *testing.T) {
 	}
 }
 
-func TestWebhookNotesTeamMessagesWithoutAnswering(t *testing.T) {
+func TestWebhookRecordsKnownNumbers(t *testing.T) {
 	const member = "447700900456"
 	rec := &recorder{done: make(chan struct{}, 10)}
 	contacts := NewContacts()
-	w := NewWebhook(WebhookConfig{AppSecret: secret, OwnerNumbers: []string{owner}, TeamNumbers: []string{member}, Contacts: contacts}, rec, quiet)
+	w := NewWebhook(WebhookConfig{AppSecret: secret, Numbers: []string{owner, member}, Contacts: contacts}, rec, quiet)
 	w.Start(context.Background())
 
 	for i, from := range []string{member, "15550001111", owner} {
@@ -307,15 +307,12 @@ func TestWebhookNotesTeamMessagesWithoutAnswering(t *testing.T) {
 	}
 	w.Stop()
 
-	if len(rec.msgs) != 1 || rec.msgs[0].From != owner {
-		t.Fatalf("only the owner's message should be processed, got %+v", rec.msgs)
+	if len(rec.msgs) != 2 || rec.msgs[0].From != member || rec.msgs[1].From != owner {
+		t.Fatalf("known numbers should be processed and strangers dropped, got %+v", rec.msgs)
 	}
 	// The fixture's timestamp is 1790000000.
 	if last, ok := contacts.LastMessage(member); !ok || !last.Equal(time.Unix(1790000000, 0)) {
 		t.Errorf("team member last message = %v, %v", last, ok)
-	}
-	if _, ok := contacts.LastMessage(owner); !ok {
-		t.Error("owner's message should be recorded too")
 	}
 	if _, ok := contacts.LastMessage("15550001111"); ok {
 		t.Error("unknown numbers must not be recorded")

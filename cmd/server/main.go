@@ -21,6 +21,7 @@ import (
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/clickup"
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/commands"
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/config"
+	"github.com/prabishdangi/whatsapp-ops-bot/internal/metricool"
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/whatsapp"
 )
 
@@ -57,18 +58,30 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		messenger = whatsapp.NewCloudClient(cfg.WAAPIBaseURL, cfg.WAGraphVersion, cfg.WAPhoneNumberID, cfg.WAToken, log)
 	}
 
+	commands.SetClock(commands.Clock{Label: cfg.TZLabel, Second: cfg.SecondTZ, SecondLabel: cfg.SecondLabel})
 	contacts := whatsapp.NewContacts()
-	var team []commands.Contact
-	var teamNumbers []string
-	for _, c := range cfg.Team {
-		team = append(team, commands.Contact{Name: c.Name, Number: c.Number})
-		teamNumbers = append(teamNumbers, c.Number)
+	var numbers []string
+	people := func(ps []config.Person) []commands.Contact {
+		var out []commands.Contact
+		for _, p := range ps {
+			out = append(out, commands.Contact{Name: p.Name, Number: p.Number})
+			numbers = append(numbers, p.Number)
+		}
+		return out
+	}
+	admins, team := people(cfg.Admins), people(cfg.Team)
+
+	clickupClient := clickup.NewHTTPClient(cfg.ClickUpBaseURL, cfg.ClickUpToken, cfg.ClickUpTeamID, log)
+	clickupClient.Dates = clickup.Dates{Loc: cfg.Location, SetIn: []*time.Location{cfg.Location}}
+	if cfg.SecondTZ != nil {
+		clickupClient.Dates.SetIn = append(clickupClient.Dates.SetIn, cfg.SecondTZ)
 	}
 
 	router := &commands.Router{
-		ClickUp:   clickup.NewHTTPClient(cfg.ClickUpBaseURL, cfg.ClickUpToken, cfg.ClickUpTeamID, log),
+		ClickUp:   clickupClient,
 		Messenger: messenger,
 		Uploads:   cfg.UploadsFolder,
+		Admins:    admins,
 		Team:      team,
 		Contacts:  contacts,
 		Loc:       cfg.Location,
@@ -76,11 +89,26 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		Log:       log,
 	}
 
+	if cfg.MetricoolToken != "" {
+		router.Metricool = metricool.New(cfg.MetricoolBaseURL, cfg.MetricoolToken, cfg.MetricoolUserID, log)
+	}
+	router.BrandMap = commands.BrandMap(cfg.MetricoolBrands)
+	router.Manual = cfg.UploadsManual
+	for list, at := range cfg.PostingDeadlines {
+		if list == "*" {
+			router.Deadlines.Default, router.Deadlines.HasDefault = at, true
+			continue
+		}
+		if router.Deadlines.ByBrand == nil {
+			router.Deadlines.ByBrand = map[string][2]int{}
+		}
+		router.Deadlines.ByBrand[commands.BrandKey(list)] = at
+	}
+
 	webhook := whatsapp.NewWebhook(whatsapp.WebhookConfig{
 		VerifyToken:   cfg.WAVerifyToken,
 		AppSecret:     cfg.WAAppSecret,
-		OwnerNumbers:  cfg.OwnerNumbers,
-		TeamNumbers:   teamNumbers,
+		Numbers:       numbers,
 		Contacts:      contacts,
 		PhoneNumberID: cfg.WAPhoneNumberID,
 	}, router, log)
@@ -92,13 +120,18 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	if cfg.ReminderOn {
 		reminder := &commands.Reminder{
 			Router:   router,
-			Owners:   cfg.OwnerNumbers,
+			Owners:   cfg.AdminNumbers(),
 			Hour:     cfg.ReminderHour,
 			Minute:   cfg.ReminderMinute,
 			Template: cfg.ReminderTemplate,
 			Lang:     cfg.ReminderLang,
 		}
 		go reminder.Run(ctx)
+	}
+
+	if events := commands.PostingSchedule(cfg.PostingTimes, router.Deadlines); len(events) > 0 {
+		posting := &commands.PostingReminder{Router: router, Admins: cfg.AdminNumbers(), Events: events}
+		go posting.Run(ctx)
 	}
 
 	srv := &http.Server{

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,9 +14,12 @@ import (
 
 // Config holds all runtime configuration.
 type Config struct {
-	HTTPAddr string
-	LogLevel slog.Level
-	Location *time.Location
+	HTTPAddr    string
+	LogLevel    slog.Level
+	Location    *time.Location // TZ: reports, deadlines and reminders use this
+	TZLabel     string         // TZ_LABEL, e.g. "UK"
+	SecondTZ    *time.Location // SECOND_TZ: shown alongside, e.g. Nepal; nil when off
+	SecondLabel string         // SECOND_TZ_LABEL, e.g. "Nepal"
 
 	WAGraphVersion  string
 	WAPhoneNumberID string
@@ -24,13 +28,21 @@ type Config struct {
 	WAVerifyToken   string
 	WAAPIBaseURL    string
 	WADryRun        bool
-	OwnerNumbers    []string      // OWNER_WA_NUMBER, comma-separated
-	Team            []TeamContact // TEAM_WA_NUMBERS: who /remind can message
+	Admins          []Person // ADMIN_WA_NUMBERS plus legacy OWNER_WA_NUMBER: founders and the project manager
+	Team            []Person // TEAM_WA_NUMBERS: team members, who can only see and complete their own tasks
 
 	ClickUpToken   string
 	ClickUpTeamID  string
 	ClickUpBaseURL string
 	UploadsFolder  string // tasks in this folder are the posting calendar; empty disables
+
+	MetricoolToken   string            // METRICOOL_API_TOKEN; empty turns Metricool off
+	MetricoolUserID  string            // METRICOOL_USER_ID
+	MetricoolBaseURL string            // METRICOOL_BASE_URL
+	MetricoolBrands  map[string]string // METRICOOL_BRANDS: ClickUp list name → Metricool brand, for names that differ
+	UploadsManual    []string          // UPLOADS_MANUAL: ClickUp lists posted by hand
+	PostingTimes     [][2]int          // POSTING_TIMES: hour, minute of the morning and midday summaries; empty when off
+	PostingDeadlines map[string][2]int // POSTING_DEADLINES: ClickUp list → posting deadline; "*" for every other client
 
 	ReminderOn       bool // REMINDER_TIME is not "off"
 	ReminderHour     int
@@ -39,11 +51,21 @@ type Config struct {
 	ReminderLang     string
 }
 
-// TeamContact is a team member's WhatsApp number. Name is matched against
-// ClickUp member names the same way /<name> is.
-type TeamContact struct {
+// Person is someone allowed to use the bot. Name is matched against ClickUp
+// member names the same way /<name> is; it may be empty for an admin who has
+// no tasks in ClickUp.
+type Person struct {
 	Name   string // lower case, e.g. "sunil"
 	Number string // digits only, with country code
+}
+
+// AdminNumbers returns the admins' phone numbers.
+func (c *Config) AdminNumbers() []string {
+	out := make([]string, len(c.Admins))
+	for i, p := range c.Admins {
+		out[i] = p.Number
+	}
+	return out
 }
 
 var (
@@ -81,6 +103,48 @@ func Load(getenv func(string) string) (*Config, error) {
 		c.UploadsFolder = ""
 	}
 
+	c.MetricoolToken = get("METRICOOL_API_TOKEN", "")
+	c.MetricoolUserID = get("METRICOOL_USER_ID", "")
+	c.MetricoolBaseURL = strings.TrimRight(get("METRICOOL_BASE_URL", "https://app.metricool.com/api"), "/")
+	if (c.MetricoolToken == "") != (c.MetricoolUserID == "") {
+		problems = append(problems, "set both METRICOOL_API_TOKEN and METRICOOL_USER_ID, or neither")
+	}
+	c.MetricoolBrands = map[string]string{}
+	for _, entry := range splitList(get("METRICOOL_BRANDS", "")) {
+		list, brand, ok := strings.Cut(entry, "=")
+		if !ok || strings.TrimSpace(list) == "" || strings.TrimSpace(brand) == "" {
+			problems = append(problems, fmt.Sprintf("METRICOOL_BRANDS entry %q must be ClickUp list=Metricool brand, e.g. ChocSpot=ChocStop", entry))
+			continue
+		}
+		c.MetricoolBrands[strings.TrimSpace(list)] = strings.TrimSpace(brand)
+	}
+	c.UploadsManual = splitList(get("UPLOADS_MANUAL", ""))
+	c.PostingDeadlines = map[string][2]int{}
+	if pd := get("POSTING_DEADLINES", "*=17:00"); !strings.EqualFold(pd, "off") {
+		for _, entry := range splitList(pd) {
+			list, at, _ := strings.Cut(entry, "=")
+			t, err := time.Parse("15:04", strings.TrimSpace(at))
+			if strings.TrimSpace(list) == "" || err != nil {
+				problems = append(problems, fmt.Sprintf("POSTING_DEADLINES entry %q must be client=HH:MM, e.g. failte=07:00 or *=17:00", entry))
+				continue
+			}
+			c.PostingDeadlines[strings.TrimSpace(list)] = [2]int{t.Hour(), t.Minute()}
+		}
+	}
+	if pt := get("POSTING_TIMES", "08:00,12:00"); !strings.EqualFold(pt, "off") {
+		for _, s := range splitList(pt) {
+			t, err := time.Parse("15:04", s)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("POSTING_TIMES %q must be HH:MM times, comma-separated, or off", pt))
+				break
+			}
+			c.PostingTimes = append(c.PostingTimes, [2]int{t.Hour(), t.Minute()})
+		}
+		sort.Slice(c.PostingTimes, func(i, j int) bool {
+			return c.PostingTimes[i][0]*60+c.PostingTimes[i][1] < c.PostingTimes[j][0]*60+c.PostingTimes[j][1]
+		})
+	}
+
 	c.ReminderTemplate = get("REMINDER_TEMPLATE", "")
 	c.ReminderLang = get("REMINDER_TEMPLATE_LANG", "en")
 	if rt := get("REMINDER_TIME", "off"); !strings.EqualFold(rt, "off") {
@@ -107,12 +171,20 @@ func Load(getenv func(string) string) (*Config, error) {
 	}
 	c.WAAppSecret = require("WA_APP_SECRET")
 	c.WAVerifyToken = require("WA_VERIFY_TOKEN")
-	for _, n := range strings.Split(require("OWNER_WA_NUMBER"), ",") {
-		if n = strings.TrimPrefix(strings.TrimSpace(n), "+"); n != "" {
-			c.OwnerNumbers = append(c.OwnerNumbers, n)
-		}
+	c.Admins, problems = parsePeople("ADMIN_WA_NUMBERS", get("ADMIN_WA_NUMBERS", ""), true, problems)
+	legacy, problems := parsePeople("OWNER_WA_NUMBER", get("OWNER_WA_NUMBER", ""), true, problems)
+	c.Admins = append(c.Admins, legacy...)
+	if len(c.Admins) == 0 {
+		problems = append(problems, "missing required variable ADMIN_WA_NUMBERS (founders and project manager, e.g. suranjana=9779812345678)")
 	}
-	c.Team, problems = parseTeam(get("TEAM_WA_NUMBERS", ""), problems)
+	c.Team, problems = parsePeople("TEAM_WA_NUMBERS", get("TEAM_WA_NUMBERS", ""), false, problems)
+	seen := map[string]bool{}
+	for _, p := range append(append([]Person(nil), c.Admins...), c.Team...) {
+		if seen[p.Number] {
+			problems = append(problems, fmt.Sprintf("number ending %s is listed more than once across ADMIN_WA_NUMBERS, OWNER_WA_NUMBER and TEAM_WA_NUMBERS; each person needs exactly one role", tail(p.Number)))
+		}
+		seen[p.Number] = true
+	}
 	c.ClickUpToken = require("CLICKUP_TOKEN")
 	c.ClickUpTeamID = require("CLICKUP_TEAM_ID")
 
@@ -127,13 +199,14 @@ func Load(getenv func(string) string) (*Config, error) {
 		loc = time.UTC
 	}
 	c.Location = loc
-
-	for _, n := range c.OwnerNumbers {
-		if !ownerPattern.MatchString(n) {
-			problems = append(problems, "OWNER_WA_NUMBER must be digits only with country code, comma-separated for several, e.g. 9779812345678,447700900123")
-			break
+	c.TZLabel = get("TZ_LABEL", "UK")
+	if second := get("SECOND_TZ", "Asia/Kathmandu"); !strings.EqualFold(second, "off") {
+		if c.SecondTZ, err = time.LoadLocation(second); err != nil {
+			problems = append(problems, fmt.Sprintf("SECOND_TZ %q is not a valid IANA time zone (or off)", second))
 		}
+		c.SecondLabel = get("SECOND_TZ_LABEL", "Nepal")
 	}
+
 	if !versionPattern.MatchString(c.WAGraphVersion) {
 		problems = append(problems, fmt.Sprintf("WA_GRAPH_VERSION %q must look like v25.0", c.WAGraphVersion))
 	}
@@ -144,20 +217,43 @@ func Load(getenv func(string) string) (*Config, error) {
 	return c, nil
 }
 
-// parseTeam reads "sunil=447700900123,himal=9779812345678".
-func parseTeam(v string, problems []string) ([]TeamContact, []string) {
-	var team []TeamContact
+// parsePeople reads "sunil=447700900123,himal=9779812345678". When bare is
+// true a number without a name is allowed too, e.g. "447700900123".
+func parsePeople(key, v string, bare bool, problems []string) ([]Person, []string) {
+	var people []Person
 	for _, entry := range strings.Split(v, ",") {
 		if entry = strings.TrimSpace(entry); entry == "" {
 			continue
 		}
-		name, number, _ := strings.Cut(entry, "=")
+		name, number, ok := strings.Cut(entry, "=")
+		if !ok && bare {
+			name, number = "", entry
+		}
 		name = strings.ToLower(strings.Join(strings.Fields(name), " "))
 		number = strings.TrimPrefix(strings.TrimSpace(number), "+")
-		if name == "" || !ownerPattern.MatchString(number) {
-			return nil, append(problems, fmt.Sprintf("TEAM_WA_NUMBERS entry %q must be name=number, digits only with country code, e.g. sunil=447700900123", entry))
+		if (name == "" && !bare) || !ownerPattern.MatchString(number) {
+			return nil, append(problems, fmt.Sprintf("%s entry %q must be name=number, digits only with country code, e.g. sunil=447700900123", key, entry))
 		}
-		team = append(team, TeamContact{Name: name, Number: number})
+		people = append(people, Person{Name: name, Number: number})
 	}
-	return team, problems
+	return people, problems
+}
+
+// splitList splits a comma-separated value, dropping blanks.
+func splitList(v string) []string {
+	var out []string
+	for _, s := range strings.Split(v, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// tail keeps phone numbers out of error messages apart from the last digits.
+func tail(n string) string {
+	if len(n) <= 3 {
+		return n
+	}
+	return n[len(n)-3:]
 }

@@ -16,12 +16,54 @@ import (
 
 // fakeClickUp applies TaskFilter roughly the way the ClickUp API does.
 type fakeClickUp struct {
-	members []clickup.Member
-	tasks   []clickup.Task
-	err     error
+	members  []clickup.Member
+	tasks    []clickup.Task
+	err      error
+	me       clickup.Member
+	details  map[string]clickup.TaskDetail
+	statuses []clickup.Status // every list's statuses; default to-do / complete / cancelled
+	setErr   error
+	comments map[string][]string // task ID → comments added
 }
 
 func (f *fakeClickUp) Members(context.Context) ([]clickup.Member, error) { return f.members, f.err }
+
+func (f *fakeClickUp) TaskDetail(_ context.Context, id string) (clickup.TaskDetail, error) {
+	return f.details[id], f.err
+}
+
+func (f *fakeClickUp) ListStatuses(context.Context, string) ([]clickup.Status, error) {
+	if f.statuses != nil {
+		return f.statuses, f.err
+	}
+	return []clickup.Status{{Name: "to do", Type: "open"}, {Name: "complete", Type: "done"}, {Name: "cancelled", Type: "closed"}}, f.err
+}
+
+// SetStatus updates the stored task, treating "complete" as done.
+func (f *fakeClickUp) SetStatus(_ context.Context, id, status string) error {
+	if f.setErr != nil {
+		return f.setErr
+	}
+	for i := range f.tasks {
+		if f.tasks[i].ID == id {
+			f.tasks[i].Status, f.tasks[i].StatusType = status, "open"
+			if status == "complete" {
+				f.tasks[i].StatusType = "done"
+			}
+		}
+	}
+	return nil
+}
+
+func (f *fakeClickUp) AddComment(_ context.Context, id, text string) error {
+	if f.comments == nil {
+		f.comments = map[string][]string{}
+	}
+	f.comments[id] = append(f.comments[id], text)
+	return nil
+}
+
+func (f *fakeClickUp) Me(context.Context) (clickup.Member, error) { return f.me, f.err }
 
 func (f *fakeClickUp) Tasks(_ context.Context, filter clickup.TaskFilter) ([]clickup.Task, error) {
 	if f.err != nil {
@@ -216,8 +258,10 @@ func TestShortCommandSameName(t *testing.T) {
 
 func TestProcessRepliesToSender(t *testing.T) {
 	r, m := newRouter(&fakeClickUp{members: team})
+	r.Admins = []Contact{{Number: "977"}}
 	r.Process(context.Background(), whatsapp.InboundMessage{ID: "w1", From: "977", Type: "text", Text: "/HELP"})
 	r.Process(context.Background(), whatsapp.InboundMessage{ID: "w2", From: "977", Type: "image"})
+	r.Process(context.Background(), whatsapp.InboundMessage{ID: "w3", From: "15550001111", Type: "text", Text: "/help"})
 	if len(m.sent) != 2 {
 		t.Fatalf("sent %d messages", len(m.sent))
 	}

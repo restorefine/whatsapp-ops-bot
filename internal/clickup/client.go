@@ -1,6 +1,7 @@
 package clickup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,14 +11,21 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 // Client is what the command logic needs from ClickUp. Tests use a fake.
+// Apart from SetStatus and AddComment, which mark tasks complete, it only reads.
 type Client interface {
 	Tasks(ctx context.Context, f TaskFilter) ([]Task, error)
 	Members(ctx context.Context) ([]Member, error)
+	TaskDetail(ctx context.Context, taskID string) (TaskDetail, error)
+	ListStatuses(ctx context.Context, listID string) ([]Status, error)
+	SetStatus(ctx context.Context, taskID, status string) error
+	AddComment(ctx context.Context, taskID, text string) error
+	Me(ctx context.Context) (Member, error)
 }
 
 // TaskFilter maps to query parameters of GET /team/{team_id}/task.
@@ -60,6 +68,7 @@ type HTTPClient struct {
 	CacheTTL time.Duration
 	MaxWait  time.Duration // longest we will sleep for a rate limit
 	MaxPages int
+	Dates    Dates // turns due dates into deadlines; zero value leaves them as stored
 
 	mu    sync.Mutex
 	cache map[string]cacheEntry
@@ -86,8 +95,9 @@ func NewHTTPClient(baseURL, token, teamID string, log *slog.Logger) *HTTPClient 
 }
 
 // Tasks returns all tasks matching f, following pagination to the last page.
+// Due date filters apply to the normalised deadlines (see Dates).
 func (c *HTTPClient) Tasks(ctx context.Context, f TaskFilter) ([]Task, error) {
-	query := f.values()
+	query := c.Dates.widen(f).values()
 	key := "tasks?" + query.Encode()
 	if v, ok := c.cached(key); ok {
 		return v.([]Task), nil
@@ -100,8 +110,12 @@ func (c *HTTPClient) Tasks(ctx context.Context, f TaskFilter) ([]Task, error) {
 		if err := c.get(ctx, fmt.Sprintf("/team/%s/task", url.PathEscape(c.TeamID)), query, &resp); err != nil {
 			return nil, err
 		}
-		for _, t := range resp.Tasks {
-			all = append(all, t.task())
+		for _, at := range resp.Tasks {
+			t := at.task()
+			c.Dates.Normalise(&t)
+			if c.Dates.keep(t, f) {
+				all = append(all, t)
+			}
 		}
 		if string(resp.LastPage) == "true" || len(resp.Tasks) == 0 {
 			break
@@ -136,6 +150,85 @@ func (c *HTTPClient) Members(ctx context.Context) ([]Member, error) {
 		return members, nil
 	}
 	return nil, fmt.Errorf("clickup: workspace %s not found for this token; check CLICKUP_TEAM_ID", c.TeamID)
+}
+
+// TaskDetail returns a task's description and comments.
+func (c *HTTPClient) TaskDetail(ctx context.Context, taskID string) (TaskDetail, error) {
+	var task taskDetailResponse
+	q := url.Values{"include_markdown_description": {"true"}}
+	if err := c.get(ctx, "/task/"+url.PathEscape(taskID), q, &task); err != nil {
+		return TaskDetail{}, err
+	}
+	var comments commentsResponse
+	if err := c.get(ctx, "/task/"+url.PathEscape(taskID)+"/comment", nil, &comments); err != nil {
+		return TaskDetail{}, err
+	}
+	d := TaskDetail{Description: task.MarkdownDescription}
+	if d.Description == "" {
+		d.Description = task.Description
+	}
+	// ClickUp lists comments newest first.
+	for i := len(comments.Comments) - 1; i >= 0; i-- {
+		cm := comments.Comments[i]
+		comment := Comment{Author: cm.User.member(), Text: cm.CommentText}
+		if cm.Date.t != nil {
+			comment.Date = *cm.Date.t
+		}
+		d.Comments = append(d.Comments, comment)
+	}
+	return d, nil
+}
+
+// ListStatuses returns the statuses of a list.
+func (c *HTTPClient) ListStatuses(ctx context.Context, listID string) ([]Status, error) {
+	key := "statuses/" + listID
+	if v, ok := c.cached(key); ok {
+		return v.([]Status), nil
+	}
+	var resp listResponse
+	if err := c.get(ctx, "/list/"+url.PathEscape(listID), nil, &resp); err != nil {
+		return nil, err
+	}
+	c.store(key, resp.Statuses)
+	return resp.Statuses, nil
+}
+
+// SetStatus moves a task to status and drops cached task lists.
+func (c *HTTPClient) SetStatus(ctx context.Context, taskID, status string) error {
+	err := c.send(ctx, http.MethodPut, "/task/"+url.PathEscape(taskID), map[string]any{"status": status})
+	c.forgetTasks()
+	return err
+}
+
+// AddComment posts a comment on a task without notifying anyone.
+func (c *HTTPClient) AddComment(ctx context.Context, taskID, text string) error {
+	return c.send(ctx, http.MethodPost, "/task/"+url.PathEscape(taskID)+"/comment",
+		map[string]any{"comment_text": text, "notify_all": false})
+}
+
+// Me returns the user the API token belongs to.
+func (c *HTTPClient) Me(ctx context.Context) (Member, error) {
+	const key = "me"
+	if v, ok := c.cached(key); ok {
+		return v.(Member), nil
+	}
+	var resp userResponse
+	if err := c.get(ctx, "/user", nil, &resp); err != nil {
+		return Member{}, err
+	}
+	m := resp.User.member()
+	c.store(key, m)
+	return m, nil
+}
+
+func (c *HTTPClient) forgetTasks() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.cache {
+		if strings.HasPrefix(k, "tasks?") {
+			delete(c.cache, k)
+		}
+	}
 }
 
 func (c *HTTPClient) cached(key string) (any, bool) {
@@ -177,9 +270,23 @@ func (c *HTTPClient) get(ctx context.Context, path string, query url.Values, out
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
+	return c.request(ctx, http.MethodGet, u, nil, out)
+}
+
+// send makes a write request with a JSON body.
+func (c *HTTPClient) send(ctx context.Context, method, path string, body any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	var out json.RawMessage
+	return c.request(ctx, method, c.BaseURL+path, b, &out)
+}
+
+func (c *HTTPClient) request(ctx context.Context, method, u string, body []byte, out any) error {
 	const attempts = 3
 	for attempt := 1; ; attempt++ {
-		wait, err := c.do(ctx, u, out)
+		wait, err := c.do(ctx, method, u, body, out)
 		if !errors.Is(err, errRateLimited) {
 			return err
 		}
@@ -195,14 +302,23 @@ func (c *HTTPClient) get(ctx context.Context, path string, query url.Values, out
 	}
 }
 
-// do performs one request. On 429 it returns errRateLimited and how long to wait.
-func (c *HTTPClient) do(ctx context.Context, u string, out any) (time.Duration, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+// do performs one request. On 429 it returns errRateLimited and how long to
+// wait; ClickUp rejects rate-limited requests before applying them, so
+// retrying a write after a 429 is safe.
+func (c *HTTPClient) do(ctx context.Context, method, u string, body []byte, out any) (time.Duration, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reader)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Authorization", c.Token) // personal tokens use no "Bearer" prefix
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {

@@ -23,6 +23,9 @@ Everything due today and tomorrow, work and posts
 */uploads*
 Social media posting calendar. _/uploads next_ shows next month
 
+*/posted*
+What actually went out today, from Metricool. _/posted yesterday_ or _/posted mon_ for another day
+
 */<name>*
 One person's tasks, e.g. _/sunil_
 
@@ -31,6 +34,9 @@ Send someone their tasks due today, e.g. _/remind sunil_ (or _/reminder sunil_)
 
 */team*
 Team members and their commands
+
+*my tasks* · *done <task>* · *undo*
+Your own tasks. _done weetutor for sagun_ completes someone else's
 
 */help*
 This list`
@@ -44,38 +50,88 @@ var reserved = map[string]bool{
 	"team": true, "members": true,
 	"uploads": true, "upload": true, "posts": true,
 	"due": true, "today": true, "reminder": true,
-	"remind": true,
+	"remind": true, "posted": true, "my": true, "mytasks": true, "done": true, "undo": true,
+	"complete": true, "completed": true,
 }
 
 // Router turns inbound messages into replies. It depends only on interfaces.
 type Router struct {
 	ClickUp   clickup.Client
 	Messenger whatsapp.Messenger
-	Uploads   string // folder name of the posting calendar; empty disables /uploads
-	Team      []Contact
+	Uploads   string             // folder name of the posting calendar; empty disables /uploads
+	Admins    []Contact          // founders and project manager; Name may be empty
+	Team      []Contact          // team members
 	Contacts  *whatsapp.Contacts // when each number last messaged; nil treats every window as closed
-	Loc       *time.Location
-	Now       func() time.Time
-	Log       *slog.Logger
+	Metricool Posts              // nil when not configured: posting checks use the ClickUp tick
+	BrandMap  map[string]string  // brandKey(ClickUp list) → Metricool label, for names that differ
+	Manual    []string           // ClickUp lists posted by hand, not through Metricool
+	Deadlines Deadlines          // by when each client's posts must be out
+
+	sessions sessions
+	Loc      *time.Location
+	Now      func() time.Time
+	Log      *slog.Logger
 }
 
 // Process answers one inbound message. It implements whatsapp.Processor.
 func (r *Router) Process(ctx context.Context, msg whatsapp.InboundMessage) {
 	start := time.Now()
-	reply := NonTextReply
-	cmd := "(non-text)"
-	if msg.Type == "text" {
+	p, role := r.WhoIs(msg.From)
+	reply, cmd := "", "(non-text)"
+	switch {
+	case role == RoleNone:
+	case msg.Type == "text":
 		cmd = Parse(msg.Text).Name
-		reply = r.Reply(ctx, msg.Text)
+		reply = r.Handle(ctx, p, role, msg.Text)
+	case role == RoleAdmin:
+		reply = NonTextReply
+	}
+	if reply == "" {
+		r.Log.Debug("message needs no reply", "role", role, "wamid", msg.ID)
+		return
 	}
 	if err := r.Messenger.SendText(ctx, msg.From, reply); err != nil {
 		r.Log.Error("failed to send reply", "command", cmd, "wamid", msg.ID, "err", err)
 		return
 	}
-	r.Log.Info("command handled", "command", cmd, "wamid", msg.ID, "reply_chars", len([]rune(reply)), "took_ms", time.Since(start).Milliseconds())
+	r.Log.Info("command handled", "command", cmd, "role", role, "wamid", msg.ID, "reply_chars", len([]rune(reply)), "took_ms", time.Since(start).Milliseconds())
 }
 
-// Reply returns the response text for a message.
+// WhoIs looks up who a number belongs to and what they may do.
+func (r *Router) WhoIs(number string) (Contact, Role) {
+	for _, a := range r.Admins {
+		if a.Number == number {
+			return a, RoleAdmin
+		}
+	}
+	for _, t := range r.Team {
+		if t.Number == number {
+			return t, RoleTeam
+		}
+	}
+	return Contact{Number: number}, RoleNone
+}
+
+// Handle returns the reply to a text message from p, or "" for none. Team
+// members only get the self-service commands; anything else they send is
+// usually ordinary chat with the founders on the shared business number, so
+// the bot stays quiet unless it looks like an admin command.
+func (r *Router) Handle(ctx context.Context, p Contact, role Role, text string) string {
+	if reply, ok := r.selfService(ctx, p, role, text); ok {
+		return reply
+	}
+	switch role {
+	case RoleAdmin:
+		return r.Reply(ctx, text)
+	case RoleTeam:
+		if strings.HasPrefix(strings.TrimSpace(text), "/") {
+			return AdminOnlyReply
+		}
+	}
+	return ""
+}
+
+// Reply returns an admin's response to a message.
 func (r *Router) Reply(ctx context.Context, text string) string {
 	cmd := Parse(text)
 	if cmd.Name == "reminder" && cmd.Args != "" {
@@ -90,6 +146,8 @@ func (r *Router) Reply(ctx context.Context, text string) string {
 		return r.due(ctx)
 	case "remind":
 		return r.remind(ctx, cmd.Args)
+	case "posted":
+		return r.posted(ctx, cmd.Args)
 	case "team", "members":
 		return r.team(ctx)
 	case "uploads", "upload", "posts":
