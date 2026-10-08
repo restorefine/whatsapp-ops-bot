@@ -433,7 +433,9 @@ func PostingSchedule(summaries [][2]int, d Deadlines) []PostingEvent {
 func minutes(t [2]int) int { return t[0]*60 + t[1] }
 
 // hhmm shows a configured time the same way as every other time: "5:00 PM".
-func hhmm(t [2]int) string { return time.Date(2000, 1, 1, t[0], t[1], 0, 0, time.UTC).Format(timeLayout) }
+func hhmm(t [2]int) string {
+	return time.Date(2000, 1, 1, t[0], t[1], 0, 0, time.UTC).Format(timeLayout)
+}
 
 // byWhen is " · by 5:00 PM" for a client with a deadline.
 func (r *Router) byWhen(list string) string {
