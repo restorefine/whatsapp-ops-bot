@@ -78,9 +78,9 @@ func TestPostedReport(t *testing.T) {
 	got := r.Reply(context.Background(), "/posted")
 	for _, want := range []string{
 		"*❌ Not posted* (2)\n• ChocSpot\n• Zaks Drive thru (V) · 1 of 2 posted",
-		"*✅ Posted* (1)\n• Masala · 12:00 · FB, IG, TikTok",
+		"*✅ Posted* (1)\n• Masala · 12:00 PM · FB, IG, TikTok",
 		"*✋ Posted by hand* (2)\n• Indian at roundabout · ❌ not ticked in ClickUp · _not in Metricool_\n• Mannis · ✅ ticked in ClickUp",
-		"*➕ Also posted, not planned in ClickUp* (1)\n• RestoRefine · 11:00 · IG",
+		"*➕ Also posted, not planned in ClickUp* (1)\n• RestoRefine · 11:00 AM · IG",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
@@ -99,18 +99,18 @@ func TestPostingMessages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"*📤 Planned* (5)", "• Masala · by 07:00 · ✅ already out", "• Zaks Drive thru (V) · by 17:00 · 2 posts", "• Mannis · by 17:00 · ✋ by hand · ✅ already out", "*⚠️ Didn't go out yesterday* (1)\n• Masala"} {
+	for _, want := range []string{"*📤 Planned* (5)", "• Masala · by 7:00 AM · ✅ already out", "• Zaks Drive thru (V) · by 5:00 PM · 2 posts", "• Mannis · by 5:00 PM · ✋ by hand · ✅ already out", "*⚠️ Didn't go out yesterday* (1)\n• Masala"} {
 		if !strings.Contains(morning, want) {
 			t.Errorf("morning missing %q:\n%s", want, morning)
 		}
 	}
 	midday, _ := r.PostingMessage(ctx, PostingEvent{Kind: PostingMidday})
-	if !strings.Contains(midday, "*❌ Not out yet* (3)") || !strings.Contains(midday, "• ChocSpot · by 17:00") || !strings.Contains(midday, "*✅ Already out* (2)") {
+	if !strings.Contains(midday, "*❌ Not out yet* (3)") || !strings.Contains(midday, "• ChocSpot · by 5:00 PM") || !strings.Contains(midday, "*✅ Already out* (2)") {
 		t.Errorf("midday:\n%s", midday)
 	}
 
 	early, _ := r.PostingMessage(ctx, PostingEvent{Kind: PostingCheck, Deadline: [2]int{7, 0}})
-	if !strings.Contains(early, "Posting check · 07:00 deadline") || !strings.Contains(early, "• Masala") || strings.Contains(early, "Zaks") || strings.Contains(early, "RestoRefine") {
+	if !strings.Contains(early, "Posting check · 7:00 AM deadline") || !strings.Contains(early, "• Masala") || strings.Contains(early, "Zaks") || strings.Contains(early, "RestoRefine") {
 		t.Errorf("07:00 check should cover only Masala:\n%s", early)
 	}
 	late, _ := r.PostingMessage(ctx, PostingEvent{Kind: PostingCheck, Deadline: [2]int{17, 0}, Last: true})
@@ -161,7 +161,7 @@ func TestPostingReminderSendsToAdmins(t *testing.T) {
 	m := r.Messenger.(*fakeMessenger)
 	pr := &PostingReminder{Router: r, Admins: []string{"111", "222"}}
 	pr.Send(context.Background(), PostingEvent{Kind: PostingCheck, Deadline: [2]int{17, 0}, Last: true})
-	if len(m.sent) != 2 || m.sent[0].to != "111" || !strings.Contains(m.sent[1].body, "Posting check · 17:00 deadline") {
+	if len(m.sent) != 2 || m.sent[0].to != "111" || !strings.Contains(m.sent[1].body, "Posting check · 5:00 PM deadline") {
 		t.Errorf("sent = %+v", m.sent)
 	}
 }

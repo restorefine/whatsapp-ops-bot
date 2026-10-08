@@ -326,11 +326,11 @@ func failedNote(br Brand) string {
 	return ""
 }
 
-// postTimes is "19:29 UK · FB, IG, TikTok", one entry per post.
+// postTimes is "7:29 PM UK · FB, IG, TikTok", one entry per post.
 func postTimes(posts []metricool.Post) string {
 	var parts []string
 	for _, p := range posts {
-		at := p.Time.Format("15:04")
+		at := p.Time.Format(timeLayout)
 		if clock.Label != "" {
 			at += " " + clock.Label
 		}
@@ -432,9 +432,10 @@ func PostingSchedule(summaries [][2]int, d Deadlines) []PostingEvent {
 
 func minutes(t [2]int) int { return t[0]*60 + t[1] }
 
-func hhmm(t [2]int) string { return fmt.Sprintf("%02d:%02d", t[0], t[1]) }
+// hhmm shows a configured time the same way as every other time: "5:00 PM".
+func hhmm(t [2]int) string { return time.Date(2000, 1, 1, t[0], t[1], 0, 0, time.UTC).Format(timeLayout) }
 
-// byWhen is " · by 17:00" for a client with a deadline.
+// byWhen is " · by 5:00 PM" for a client with a deadline.
 func (r *Router) byWhen(list string) string {
 	if at, ok := r.Deadlines.For(list); ok {
 		return " · by " + hhmm(at)

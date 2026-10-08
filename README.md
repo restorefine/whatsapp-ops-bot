@@ -27,7 +27,7 @@ Example `/update` (shortened):
 
 ````
 *📊 Monthly Update · October 2026*
-_Sat 3 Oct 2026 · 21:56_
+_Sat 3 Oct 2026 · 9:56 PM UK · 2:41 AM Nepal_
 
 *Overview*
 ```
@@ -86,9 +86,9 @@ Once Meta approves it, set `REMINDER_TEMPLATE=due_reminder`. Template messages a
 
 Team members chat with the founders on the same business number, so the bot ignores anything from them that isn't one of their commands. A team member who sends an admin command starting with `/` is told it's for admins.
 
-**Marking tasks complete** is the bot's only change to ClickUp. It moves the task to its list's `done` status (never a `cancelled` one) and leaves a comment, e.g. "✅ Marked complete by Sagun via WhatsApp · Thu 8 Oct · 14:05 UK · 18:50 Nepal". The API token belongs to one founder, so without the comment ClickUp would show them as having done it. Admins whose 24 hour window is open get a message straight away; nobody is ever messaged at a cost. The numbered lists, the "which one?" question (10 minutes) and `undo` (10 minutes) are kept in memory, so a restart forgets them.
+**Marking tasks complete** is the bot's only change to ClickUp. It moves the task to its list's `done` status (never a `cancelled` one) and leaves a comment, e.g. "✅ Marked complete by Sagun via WhatsApp · Thu 8 Oct · 2:05 PM UK · 6:50 PM Nepal". The API token belongs to one founder, so without the comment ClickUp would show them as having done it. Admins whose 24 hour window is open get a message straight away; nobody is ever messaged at a cost. The numbered lists, the "which one?" question (10 minutes) and `undo` (10 minutes) are kept in memory, so a restart forgets them.
 
-**Times:** reports use `TZ` (UK). Due dates set without a time count as due by the end of that day in the UK, whichever country they were set in. Every header and every due date with a time also shows `SECOND_TZ` (Nepal), e.g. "Due tomorrow, 12:15 UK (17:00 Nepal)".
+**Times:** reports use `TZ` (UK). Due dates set without a time count as due by the end of that day in the UK, whichever country they were set in. Every header and every due date with a time also shows `SECOND_TZ` (Nepal), e.g. "Due tomorrow, 12:15 PM UK (5:00 PM Nepal)". Times are shown in 12-hour format; settings such as `POSTING_TIMES` are written in 24-hour format.
 
 ## Posting checks (Metricool)
 

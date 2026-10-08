@@ -278,7 +278,7 @@ func TestMemberReport(t *testing.T) {
 	got := r.Reply(context.Background(), "/bob")
 
 	mustContain(t, got,
-		"*👤 Bob Stone*\n_Thu 15 Oct 2026 · 14:00_",
+		"*👤 Bob Stone*\n_Thu 15 Oct 2026 · 2:00 PM_",
 		"```\nOpen tasks           5\nOverdue              1\nDue in next 7 days   2\nCompleted in Oct     1\n```",
 		"*⚠️ Overdue* (1)\n• Fix checkout bug\n   _Due Mon 12 Oct · 3 days late · In Progress · Website_",
 		"*🔹 In Progress* (1)\n• Client call notes\n   _Due today · Website_",

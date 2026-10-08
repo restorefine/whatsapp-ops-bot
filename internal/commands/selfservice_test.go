@@ -108,7 +108,7 @@ func TestTaskDetails(t *testing.T) {
 	}}
 	say(r, bobPhone, "my tasks")
 	got := say(r, bobPhone, "3")
-	for _, want := range []string{"*📌 WeeTutor*", "*Brief*\nhttps://drive.google.com/file/d/abc/view?usp=drive_link\n\n*Slide 1*\n*Diwali offer*", "_Anna · Thu 15 Oct · 13:00_\nCaption: Light up your Diwali", "*done 3*"} {
+	for _, want := range []string{"*📌 WeeTutor*", "*Brief*\nhttps://drive.google.com/file/d/abc/view?usp=drive_link\n\n*Slide 1*\n*Diwali offer*", "_Anna · Thu 15 Oct · 1:00 PM_\nCaption: Light up your Diwali", "*done 3*"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
@@ -262,12 +262,12 @@ func TestClockLabels(t *testing.T) {
 	SetClock(Clock{Label: "UK", Second: ktm, SecondLabel: "Nepal"})
 	defer SetClock(Clock{})
 	at := time.Date(2026, 10, 8, 9, 24, 0, 0, london)
-	if got := stamp(at); got != "09:24 UK · 14:09 Nepal" {
+	if got := stamp(at); got != "9:24 AM UK · 2:09 PM Nepal" {
 		t.Errorf("stamp = %q", got)
 	}
 	due := time.Date(2026, 10, 8, 18, 0, 0, 0, london)
 	timed := clickup.Task{DueDate: &due, DueHasTime: true}
-	if got := dueText(timed, at); got != "Due today, 18:00 UK (22:45 Nepal)" {
+	if got := dueText(timed, at); got != "Due today, 6:00 PM UK (10:45 PM Nepal)" {
 		t.Errorf("timed due = %q", got)
 	}
 	timed.DueHasTime = false
