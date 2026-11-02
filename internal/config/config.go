@@ -49,6 +49,18 @@ type Config struct {
 	ReminderMinute   int
 	ReminderTemplate string // used when an owner's 24 hour window is closed; empty skips them
 	ReminderLang     string
+
+	ApprovalsEnabled          bool
+	ApprovalsCredentials      string
+	ApprovalsToken            string
+	ApprovalsKeyFile          string
+	ApprovalsOrigin           string
+	ApprovalsStaticDir        string
+	ApprovalsNotify           bool
+	ApprovalsNewTemplate      string
+	ApprovalsReminderTemplate string
+	ApprovalsInternalTemplate string
+	ApprovalsLanguage         string
 }
 
 // Person is someone allowed to use the bot. Name is matched against ClickUp
@@ -99,6 +111,27 @@ func Load(getenv func(string) string) (*Config, error) {
 		ClickUpBaseURL: strings.TrimRight(get("CLICKUP_BASE_URL", "https://api.clickup.com/api/v2"), "/"),
 		UploadsFolder:  get("UPLOADS_FOLDER", "Uploads"),
 	}
+	var approvalErr error
+	c.ApprovalsEnabled, approvalErr = strconv.ParseBool(get("APPROVALS_ENABLED", "false"))
+	if approvalErr != nil {
+		problems = append(problems, "APPROVALS_ENABLED must be true or false")
+	}
+	c.ApprovalsNotify, approvalErr = strconv.ParseBool(get("APPROVALS_NOTIFY_ENABLED", "false"))
+	if approvalErr != nil {
+		problems = append(problems, "APPROVALS_NOTIFY_ENABLED must be true or false")
+	}
+	if c.ApprovalsNotify && !c.ApprovalsEnabled {
+		problems = append(problems, "enable APPROVALS_ENABLED before APPROVALS_NOTIFY_ENABLED")
+	}
+	c.ApprovalsCredentials = get("APPROVALS_CREDENTIALS_FILE", ".secrets/drive-client.json")
+	c.ApprovalsToken = get("APPROVALS_TOKEN_FILE", ".secrets/drive-token.json")
+	c.ApprovalsKeyFile = get("APPROVALS_KEY_FILE", ".secrets/portal-signing-key")
+	c.ApprovalsOrigin = get("APPROVALS_ORIGIN", "https://bot.restorefine.co.uk")
+	c.ApprovalsStaticDir = get("APPROVALS_STATIC_DIR", "portal/out")
+	c.ApprovalsNewTemplate = get("APPROVALS_NEW_TEMPLATE", "")
+	c.ApprovalsReminderTemplate = get("APPROVALS_REMINDER_TEMPLATE", "")
+	c.ApprovalsInternalTemplate = get("APPROVALS_INTERNAL_TEMPLATE", "")
+	c.ApprovalsLanguage = get("APPROVALS_TEMPLATE_LANG", "en_GB")
 	if strings.EqualFold(c.UploadsFolder, "none") {
 		c.UploadsFolder = ""
 	}

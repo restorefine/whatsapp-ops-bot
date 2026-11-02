@@ -1,0 +1,16 @@
+# Add after docker-compose.tunnel.yml. Keep secrets owned by the opsbot host user.
+# No public ports or changes to the separate saucy-menu stack.
+services:
+  app:
+    user: "${OPSBOT_UID:?set OPSBOT_UID to id -u}:${OPSBOT_GID:?set OPSBOT_GID to id -g}"
+    environment:
+      APPROVALS_STATIC_DIR: /app/portal
+      APPROVALS_CREDENTIALS_FILE: /app/.secrets/drive-client.json
+      APPROVALS_TOKEN_FILE: /app/.secrets/drive-token.json
+      APPROVALS_KEY_FILE: /app/.secrets/portal-signing-key
+    volumes:
+      - type: bind
+        source: ./.secrets
+        target: /app/.secrets
+        bind:
+          create_host_path: false

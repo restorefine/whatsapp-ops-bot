@@ -32,6 +32,9 @@ One person's tasks, e.g. _/sunil_
 */remind <name>*
 Send someone their tasks due today, e.g. _/remind sunil_ (or _/reminder sunil_)
 
+*/remind videos <client>*
+Remind a client about pending video approvals
+
 */team*
 Team members and their commands
 
@@ -56,16 +59,17 @@ var reserved = map[string]bool{
 
 // Router turns inbound messages into replies. It depends only on interfaces.
 type Router struct {
-	ClickUp   clickup.Client
-	Messenger whatsapp.Messenger
-	Uploads   string             // folder name of the posting calendar; empty disables /uploads
-	Admins    []Contact          // founders and project manager; Name may be empty
-	Team      []Contact          // team members
-	Contacts  *whatsapp.Contacts // when each number last messaged; nil treats every window as closed
-	Metricool Posts              // nil when not configured: posting checks use the ClickUp tick
-	BrandMap  map[string]string  // brandKey(ClickUp list) → Metricool label, for names that differ
-	Manual    []string           // ClickUp lists posted by hand, not through Metricool
-	Deadlines Deadlines          // by when each client's posts must be out
+	ClickUp     clickup.Client
+	Messenger   whatsapp.Messenger
+	Uploads     string                               // folder name of the posting calendar; empty disables /uploads
+	Admins      []Contact                            // founders and project manager; Name may be empty
+	Team        []Contact                            // team members
+	Contacts    *whatsapp.Contacts                   // when each number last messaged; nil treats every window as closed
+	Metricool   Posts                                // nil when not configured: posting checks use the ClickUp tick
+	BrandMap    map[string]string                    // brandKey(ClickUp list) → Metricool label, for names that differ
+	Manual      []string                             // ClickUp lists posted by hand, not through Metricool
+	Deadlines   Deadlines                            // by when each client's posts must be out
+	VideoRemind func(context.Context, string) string // separate portal reminder policy; admin-only
 
 	sessions sessions
 	Loc      *time.Location

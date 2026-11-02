@@ -30,6 +30,13 @@ const windowMargin = 10 * time.Minute
 // message: if they messaged the business number in the last 24 hours the bot
 // sends it directly, otherwise the owner gets a tap-to-send link instead.
 func (r *Router) remind(ctx context.Context, args string) string {
+	words := strings.Fields(args)
+	if len(words) > 0 && strings.EqualFold(words[0], "videos") {
+		if r.VideoRemind == nil {
+			return "Video approvals aren't configured yet."
+		}
+		return r.VideoRemind(ctx, strings.TrimSpace(strings.TrimPrefix(args, words[0])))
+	}
 	if args == "" {
 		return r.remindUsage()
 	}

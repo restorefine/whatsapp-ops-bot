@@ -1,4 +1,10 @@
 .env
+.secrets/
+client_secret*.json
+portal/node_modules/
+portal/.next/
+portal/out/
+.data/
 bin/
 .git
 *.md

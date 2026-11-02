@@ -129,6 +129,80 @@ WhatsApp ──► Meta Cloud API ──► Caddy (HTTPS) ──► app:8080 /we
 - ClickUp calls use `GET /team/{id}/task` with pagination, a 60 second cache, and back-off on HTTP 429.
 - Code layout: `internal/config`, `internal/whatsapp` (Messenger interface, Cloud API client, webhook), `internal/clickup` (client and `Client` interface), `internal/commands` (parser and reports, depending only on interfaces).
 
+## Connecting Google Drive (portal preparation)
+
+The standalone `drive-auth` command authorises a Google account for the planned
+video approval portal. It does not enable the portal or change Drive files.
+
+Enable Google Drive API in your Google Cloud project, configure OAuth consent,
+and download **Web application** OAuth credentials with this registered redirect:
+`http://localhost:8091/oauth/google/callback`. Keep the downloaded JSON outside
+the repository. For an External app in Testing, add your Google account as a
+test user. The required scope is `https://www.googleapis.com/auth/drive`, which
+allows managing the files your account can access; it is not limited by Google
+to one review folder. The portal integration must enforce its configured root.
+
+```bash
+go run ./cmd/drive-auth -credentials /absolute/path/to/client_secret.json
+```
+
+Open the local connection URL printed by the command and approve access on
+Google's page. The helper binds only to `127.0.0.1:8091`, expires after 15 minutes,
+and checks browser state and PKCE before accepting the callback. It requests
+offline access and saves the token to `.secrets/drive-token.json` with permissions
+`0600`. The directory is excluded from Git and Docker. The command never prints
+credentials or tokens, and refuses to overwrite an existing token; pass a new
+`-output` path when reconnecting. No database is used. Treat the token file as a
+secret when installing it on the bot server.
+
+External apps left in Testing receive Drive refresh tokens that expire after
+seven days. Resolve the OAuth publishing status before production deployment.
+
+## Client video review portal
+
+The client portal uses Next.js/React and the existing Go server. It supports
+portrait previews, playback timestamps on feedback, inline change requests and
+approval, private client links, and Drive-backed review history. It operates
+only within the explicitly authorised new approval folder; existing client
+videos elsewhere are not scanned or changed. No database is introduced.
+
+See [live setup and WhatsApp templates](docs/PORTAL-LIVE-SETUP.md) for the complete
+bulk-onboarding, OAuth, Docker and production procedure. The dedicated
+`docker-compose.portal.yml` override mounts private credentials and runs as the
+host opsbot UID/GID; it does not alter the separate saucy-menu deployment.
+
+Frontend preview (sample data only):
+
+```bash
+cd portal
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3001/portal/`. Build with `npm run build` before serving
+real data through Go. The production Dockerfile builds and includes the export.
+
+Read-only Google connection check:
+
+```bash
+go run ./cmd/approvals-setup -credentials /absolute/path/to/client_secret.json -check
+```
+
+Bulk onboarding (with the bot's portal writer stopped):
+
+```bash
+go run ./cmd/approvals-setup \
+  -credentials /absolute/path/to/client_secret.json \
+  -clients-file .secrets/clients.csv \
+  -origin https://bot.restorefine.co.uk
+```
+
+This prints client portal links and upload folders; it never sends WhatsApp.
+`APPROVALS_NOTIFY_ENABLED=true` enables the running bot's portal notifications
+when real contacts and templates are configured. `/remind videos <client>` is
+the separate admin video-reminder command; existing team task reminders remain
+free-only. Keep the signing key across restarts so bookmarked links keep working.
+
 ## Local development
 
 Requirements: Go 1.23+, `openssl` and `curl`.
@@ -177,7 +251,7 @@ Make targets: `make build`, `make test`, `make lint` (uses Docker if golangci-li
 If the webhook verifies but no messages arrive, subscribe the app to your WhatsApp Business Account once:
 `curl -X POST "https://graph.facebook.com/v25.0/<WABA_ID>/subscribed_apps" -H "Authorization: Bearer $WA_TOKEN"`. The WABA ID is shown on the API Setup page.
 
-**No message templates are needed.** The bot only ever replies to a message you just sent, so it is always inside WhatsApp's 24 hour window, where free-form text is allowed. The `Messenger` interface still includes `SendTemplate`, ready for scheduled messages later.
+**Existing task-command replies do not need templates.** Video approval notifications use the dedicated approved templates described in [portal live setup](docs/PORTAL-LIVE-SETUP.md) when the recipient's incoming-message window is closed.
 
 ## ClickUp setup
 
@@ -217,19 +291,19 @@ To update: `git pull && docker compose up -d --build`.
 
 - **Signature check:** every `POST /webhook` must carry a valid `X-Hub-Signature-256` HMAC of the raw body, signed with your app secret and compared in constant time. Anything else gets 401.
 - **Allowlist and roles:** messages from numbers not in `ADMIN_WA_NUMBERS` or `TEAM_WA_NUMBERS` get no reply and no ClickUp call. Team members can only read and complete their own tasks. A number listed in two roles stops the bot from starting.
-- **Secrets:** they live only in `.env` (git-ignored and excluded from the image). Tokens, the app secret and message bodies are never logged at info level.
+- **Secrets:** bot settings live in `.env`; Google credentials, refresh tokens and the persistent portal signing key live in the private `.secrets/` mount. Both are git-ignored and excluded from the image. Tokens, the app secret and message bodies are never logged at info level.
 - **Exposure:** the app container isn't published to the host. Caddy exposes only `/webhook` and `/healthz` and returns 404 for everything else. Keep the firewall to 22, 80 and 443.
 - **Container:** runs as a non-root user on distroless with no shell.
 
 ## Cost
 
-Meta charges per delivered **template** message, by category and country. Free-form replies inside the 24 hour customer service window are currently free. Command replies are always free. `/remind` is always free: it only messages a team member directly inside their 24 hour window, and otherwise gives you a link to send it yourself. The daily reminder is free when the owner messaged the bot in the last 24 hours. Otherwise it goes out as a utility template, a small per-message charge. Pricing changes, so check Meta's current rate card: <https://developers.facebook.com/docs/whatsapp/pricing>. ClickUp API access is included in every plan.
+Meta charges per delivered **template** message, by category and country. Free-form replies inside the 24 hour customer service window are currently free. Command replies are always free. `/remind <team member>` task reminders are always free: they only message someone directly inside their 24 hour window, and otherwise give you a link to send it yourself. Portal reminders, including `/remind videos <client>`, have a separate approved paid-template fallback. The daily reminder is free when the owner messaged the bot in the last 24 hours. Otherwise it goes out as a utility template, a small per-message charge. Pricing changes, so check Meta's current rate card: <https://developers.facebook.com/docs/whatsapp/pricing>. ClickUp API access is included in every plan.
 
 ## Assumptions
 
 - **Admins:** one or more admin numbers sharing a single ClickUp workspace. Every admin sees the same data.
 - **No database:** every command is read-only, so nothing is stored. Repeat deliveries from Meta are de-duplicated in memory for 24 hours. After a restart a repeated delivery could get a second reply, which does no harm.
-- **Scope:** invoices and clients are out of scope for now. The only scheduled message is the daily `/due` reminder to the owners. Team members aren't messaged.
+- **Scope:** invoices remain out of scope. Client video approvals are an optional Drive-backed portal, enabled with `APPROVALS_ENABLED`; its scheduled notifications have a separate `APPROVALS_NOTIFY_ENABLED` switch and approved-template policy.
 - **"Done":** a task is done when its status type is `closed` or `done`. "Finished this month" uses ClickUp's closed date, then its done date, then its last-updated date.
 - **`/update` scope:** the calendar covers tasks due this month and next month. The team table and "overdue from earlier months" use every open task. Tasks with no due date appear in the team table and in `/<name>`, but not in the calendar.
 - **Uploads:** `/uploads` lists earlier posts never marked as posted for the last 30 days only.

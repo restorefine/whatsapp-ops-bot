@@ -92,6 +92,13 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	if cfg.MetricoolToken != "" {
 		router.Metricool = metricool.New(cfg.MetricoolBaseURL, cfg.MetricoolToken, cfg.MetricoolUserID, log)
 	}
+	portal, approvalClientNumber, err := configureApprovals(ctx, cfg, router, messenger, contacts, log)
+	if err != nil {
+		log.Error("video portal unavailable; existing WhatsApp commands remain active", "err", err)
+		portal = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "The review portal is temporarily unavailable. Please try again later.", http.StatusServiceUnavailable)
+		})
+	}
 	router.BrandMap = commands.BrandMap(cfg.MetricoolBrands)
 	router.Manual = cfg.UploadsManual
 	for list, at := range cfg.PostingDeadlines {
@@ -106,11 +113,12 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	}
 
 	webhook := whatsapp.NewWebhook(whatsapp.WebhookConfig{
-		VerifyToken:   cfg.WAVerifyToken,
-		AppSecret:     cfg.WAAppSecret,
-		Numbers:       numbers,
-		Contacts:      contacts,
-		PhoneNumberID: cfg.WAPhoneNumberID,
+		VerifyToken:             cfg.WAVerifyToken,
+		AppSecret:               cfg.WAAppSecret,
+		Numbers:                 numbers,
+		Contacts:                contacts,
+		PhoneNumberID:           cfg.WAPhoneNumberID,
+		AdditionalNumberAllowed: approvalClientNumber,
 	}, router, log)
 	// Workers get their own context so in-flight replies can finish during shutdown.
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
@@ -136,7 +144,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           routes(webhook),
+		Handler:           routes(webhook, portal),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -177,7 +185,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	return nil
 }
 
-func routes(webhook *whatsapp.Webhook) http.Handler {
+func routes(webhook *whatsapp.Webhook, portal http.Handler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 
@@ -187,6 +195,13 @@ func routes(webhook *whatsapp.Webhook) http.Handler {
 	})
 	r.Get("/webhook", webhook.Verify)
 	r.Post("/webhook", webhook.Receive)
+	if portal != nil {
+		r.Handle("/c/*", portal)
+		r.Handle("/portal", portal)
+		r.Handle("/portal/*", portal)
+		r.Handle("/api/portal", portal)
+		r.Handle("/api/portal/*", portal)
+	}
 	return r
 }
 

@@ -2,3 +2,12 @@
 bin/
 *.out
 .DS_Store
+.secrets/
+client_secret*.json
+portal/node_modules/
+portal/.next/
+portal/out/
+portal/*.tsbuildinfo
+portal/AGENTS.md
+portal/CLAUDE.md
+.data/

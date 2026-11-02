@@ -27,14 +27,15 @@ type Processor interface {
 
 // WebhookConfig configures the webhook handler.
 type WebhookConfig struct {
-	VerifyToken   string
-	AppSecret     string
-	Numbers       []string  // admins and team; messages from anyone else are dropped
-	Contacts      *Contacts // optional; records when each of them last messaged
-	PhoneNumberID string    // optional; when set, events for other numbers are ignored
-	Workers       int
-	QueueSize     int
-	DedupeTTL     time.Duration
+	VerifyToken             string
+	AppSecret               string
+	Numbers                 []string          // admins and team; messages from anyone else are dropped
+	AdditionalNumberAllowed func(string) bool // portal clients: track windows without granting command roles
+	Contacts                *Contacts         // optional; records when each of them last messaged
+	PhoneNumberID           string            // optional; when set, events for other numbers are ignored
+	Workers                 int
+	QueueSize               int
+	DedupeTTL               time.Duration
 }
 
 // Webhook serves GET and POST /webhook and processes messages asynchronously.
@@ -169,7 +170,7 @@ func (w *Webhook) extract(p payload) []InboundMessage {
 				w.log.Debug("webhook: ignoring status events", "count", len(v.Statuses))
 			}
 			for _, m := range v.Messages {
-				if !slices.Contains(w.cfg.Numbers, m.From) {
+				if !slices.Contains(w.cfg.Numbers, m.From) && (w.cfg.AdditionalNumberAllowed == nil || !w.cfg.AdditionalNumberAllowed(m.From)) {
 					w.log.Debug("webhook: ignoring message from unknown number")
 					continue
 				}
