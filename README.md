@@ -203,6 +203,20 @@ when real contacts and templates are configured. `/remind videos <client>` is
 the separate admin video-reminder command; existing team task reminders remain
 free-only. Keep the signing key across restarts so bookmarked links keep working.
 
+## Editor video cycles
+
+Admins can send `/editors` or `/editors <name>` for video-editor counts and a
+private live report with an Excel download. Set `VIDEO_TEAM_WA_NUMBERS` using
+`name=countrycode-number` entries; this roster grants no admin access. Editors
+start at 0/20 on their first scan. Earlier completed tasks are kept as separate
+historical evidence. New completed tasks fill persistent 20-video cycles across
+months, and each completed cycle queues one payment-review alert per admin.
+
+Task evidence, cycle history and notification receipts live in the private
+portal Drive state. Client sessions cannot open the admin report. See
+[editor setup, counting rules and the admin usage message](docs/EDITOR-VIDEO-COUNTS.md)
+for deployment and the optional approved cycle-notification template.
+
 ## Local development
 
 Requirements: Go 1.23+, `openssl` and `curl`.

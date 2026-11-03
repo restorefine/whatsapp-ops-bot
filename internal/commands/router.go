@@ -35,6 +35,9 @@ Send someone their tasks due today, e.g. _/remind sunil_ (or _/reminder sunil_)
 */remind videos <client>*
 Remind a client about pending video approvals
 
+*/editors* · */editors <name>*
+Editor video counts, 20-video batches and the private audit report
+
 */team*
 Team members and their commands
 
@@ -55,21 +58,23 @@ var reserved = map[string]bool{
 	"due": true, "today": true, "reminder": true,
 	"remind": true, "posted": true, "my": true, "mytasks": true, "done": true, "undo": true,
 	"complete": true, "completed": true,
+	"editors": true,
 }
 
 // Router turns inbound messages into replies. It depends only on interfaces.
 type Router struct {
-	ClickUp     clickup.Client
-	Messenger   whatsapp.Messenger
-	Uploads     string                               // folder name of the posting calendar; empty disables /uploads
-	Admins      []Contact                            // founders and project manager; Name may be empty
-	Team        []Contact                            // team members
-	Contacts    *whatsapp.Contacts                   // when each number last messaged; nil treats every window as closed
-	Metricool   Posts                                // nil when not configured: posting checks use the ClickUp tick
-	BrandMap    map[string]string                    // brandKey(ClickUp list) → Metricool label, for names that differ
-	Manual      []string                             // ClickUp lists posted by hand, not through Metricool
-	Deadlines   Deadlines                            // by when each client's posts must be out
-	VideoRemind func(context.Context, string) string // separate portal reminder policy; admin-only
+	ClickUp      clickup.Client
+	Messenger    whatsapp.Messenger
+	Uploads      string                                       // folder name of the posting calendar; empty disables /uploads
+	Admins       []Contact                                    // founders and project manager; Name may be empty
+	Team         []Contact                                    // team members
+	Contacts     *whatsapp.Contacts                           // when each number last messaged; nil treats every window as closed
+	Metricool    Posts                                        // nil when not configured: posting checks use the ClickUp tick
+	BrandMap     map[string]string                            // brandKey(ClickUp list) → Metricool label, for names that differ
+	Manual       []string                                     // ClickUp lists posted by hand, not through Metricool
+	Deadlines    Deadlines                                    // by when each client's posts must be out
+	VideoRemind  func(context.Context, string) string         // separate portal reminder policy; admin-only
+	EditorCounts func(context.Context, string, string) string // admin number and editor filter
 
 	sessions sessions
 	Loc      *time.Location
@@ -126,6 +131,12 @@ func (r *Router) Handle(ctx context.Context, p Contact, role Role, text string) 
 	}
 	switch role {
 	case RoleAdmin:
+		if cmd := Parse(text); cmd.Name == "editors" {
+			if r.EditorCounts == nil {
+				return "Editor counts aren't configured yet. Add VIDEO_TEAM_WA_NUMBERS and enable the portal."
+			}
+			return r.EditorCounts(ctx, p.Number, cmd.Args)
+		}
 		return r.Reply(ctx, text)
 	case RoleTeam:
 		if strings.HasPrefix(strings.TrimSpace(text), "/") {

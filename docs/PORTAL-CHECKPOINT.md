@@ -1,5 +1,26 @@
 # Handoff checkpoint: RestoRefine client video portal
 
+**Latest update, 3 November — deployment and editor counts:** the user has now
+built/deployed the original portal on Hetzner, transferred credentials, published
+OAuth to In production, passed the container Drive access check and rehearsed
+Masala approval notifications and timestamped notes. The older local-only status
+below is historical. Client notifications currently use open incoming WhatsApp
+windows; templates are being prepared by the user.
+
+A new editor-count upgrade has been implemented: `VIDEO_TEAM_WA_NUMBERS` roster,
+admin-only `/editors [name]`, protected live report with Excel, fresh 0/20 cycles,
+separate historical imports, immutable task/batch evidence, and automatic admin
+payment-review alerts at each full cycle. Counts use completed ClickUp tasks,
+not portal approvals, and never reset by month. This upgrade still needs the
+server to pull/build/recreate the app and add its roster. See
+[editor setup and admin usage](EDITOR-VIDEO-COUNTS.md). Local `.env` has the
+user's three editor mappings; it is ignored and is not transferred by Git.
+A fixture-only preview runs on localhost:8094; its counts are sample data.
+Go race tests, vet, Next build, Docker build, desktop/mobile browser checks and
+independent Excel parsing passed. No real WhatsApp alerts or production Drive
+writes were made while building/testing this upgrade.
+
+
 **Update, 3 November:** work resumed after this checkpoint. Bulk onboarding CLI,
 Docker export/secret mounts, state rollback recovery, nonblocking client-window
 lookups, invalid filename holds and network sends outside the state mutex have

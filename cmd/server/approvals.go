@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/approvals"
@@ -72,8 +73,18 @@ func configureApprovals(ctx context.Context, cfg *config.Config, router *command
 	}
 	delivery := approvals.Delivery{Enabled: cfg.ApprovalsNotify, Messenger: portalMessenger, Contacts: contacts, NewTemplate: cfg.ApprovalsNewTemplate, ReminderTemplate: cfg.ApprovalsReminderTemplate, InternalTemplate: cfg.ApprovalsInternalTemplate, Language: cfg.ApprovalsLanguage, Link: web.Link, Deadlines: cfg.PostingDeadlines}
 	router.VideoRemind = func(ctx context.Context, name string) string { return service.Remind(ctx, name, delivery) }
-	go func() { defer unlock(); service.Run(ctx, delivery, log) }()
+	handler, editorRun := withEditorCounts(cfg, router, service, web, key, log)
+	go func() {
+		defer unlock()
+		var wg sync.WaitGroup
+		if editorRun != nil {
+			wg.Add(1)
+			go func() { defer wg.Done(); editorRun(ctx) }()
+		}
+		service.Run(ctx, delivery, log)
+		wg.Wait()
+	}()
 	ready = true
 	log.Info("video approvals enabled", "notifications_enabled", cfg.ApprovalsNotify)
-	return web, service.KnownNumber, nil
+	return handler, service.KnownNumber, nil
 }

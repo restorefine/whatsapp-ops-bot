@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/drive"
+	"github.com/prabishdangi/whatsapp-ops-bot/internal/editorcounts"
 )
 
 type Drive interface {
@@ -89,11 +90,12 @@ type Job struct {
 }
 
 type State struct {
-	Schema  int                `json:"schema"`
-	Clients map[string]*Client `json:"clients"`
-	Reviews map[string]*Review `json:"reviews"`
-	Jobs    []*Job             `json:"jobs"`
-	Invalid map[string]string  `json:"invalid"`
+	Schema       int                 `json:"schema"`
+	Clients      map[string]*Client  `json:"clients"`
+	Reviews      map[string]*Review  `json:"reviews"`
+	Jobs         []*Job              `json:"jobs"`
+	Invalid      map[string]string   `json:"invalid"`
+	EditorLedger editorcounts.Ledger `json:"editorLedger,omitempty"`
 }
 
 type Service struct {
@@ -147,6 +149,9 @@ func (s *Service) prepare(ctx context.Context) error {
 func validateState(state State) error {
 	if state.Schema != 1 || state.Clients == nil || state.Reviews == nil || state.Invalid == nil {
 		return errors.New("unsupported or incomplete portal state")
+	}
+	if err := editorcounts.Validate(state.EditorLedger); err != nil {
+		return err
 	}
 	for id, c := range state.Clients {
 		if c == nil || c.ID != id || c.Generation < 1 || c.Folder == "" || c.Months == nil {

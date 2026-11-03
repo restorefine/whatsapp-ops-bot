@@ -31,6 +31,7 @@ func (m Member) DisplayName() string {
 // Task is the subset of a ClickUp task the bot uses.
 type Task struct {
 	ID          string
+	ParentID    string // empty for top-level tasks
 	Name        string
 	Status      string // e.g. "in progress"
 	StatusType  string // open, custom, done or closed
@@ -120,6 +121,7 @@ func (u apiUser) member() Member {
 
 type apiTask struct {
 	ID     string `json:"id"`
+	Parent string `json:"parent"`
 	Name   string `json:"name"`
 	Status struct {
 		Status string `json:"status"`
@@ -145,6 +147,7 @@ type apiTask struct {
 func (a apiTask) task() Task {
 	t := Task{
 		ID:         a.ID,
+		ParentID:   a.Parent,
 		Name:       strings.TrimSpace(a.Name),
 		Status:     a.Status.Status,
 		StatusType: a.Status.Type,

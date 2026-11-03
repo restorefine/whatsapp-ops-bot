@@ -121,7 +121,7 @@ func (c *HTTPClient) Tasks(ctx context.Context, f TaskFilter) ([]Task, error) {
 			break
 		}
 		if page == c.MaxPages-1 {
-			c.Log.Warn("clickup: stopped paging at the page limit", "pages", c.MaxPages)
+			return nil, fmt.Errorf("clickup: page limit reached (%d pages); refusing an incomplete task report", c.MaxPages)
 		}
 	}
 	c.store(key, all)

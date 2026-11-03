@@ -21,15 +21,18 @@ type Config struct {
 	SecondTZ    *time.Location // SECOND_TZ: shown alongside, e.g. Nepal; nil when off
 	SecondLabel string         // SECOND_TZ_LABEL, e.g. "Nepal"
 
-	WAGraphVersion  string
-	WAPhoneNumberID string
-	WAToken         string
-	WAAppSecret     string
-	WAVerifyToken   string
-	WAAPIBaseURL    string
-	WADryRun        bool
-	Admins          []Person // ADMIN_WA_NUMBERS plus legacy OWNER_WA_NUMBER: founders and the project manager
-	Team            []Person // TEAM_WA_NUMBERS: team members, who can only see and complete their own tasks
+	WAGraphVersion      string
+	WAPhoneNumberID     string
+	WAToken             string
+	WAAppSecret         string
+	WAVerifyToken       string
+	WAAPIBaseURL        string
+	WADryRun            bool
+	Admins              []Person // ADMIN_WA_NUMBERS plus legacy OWNER_WA_NUMBER: founders and the project manager
+	Team                []Person // TEAM_WA_NUMBERS: team members, who can only see and complete their own tasks
+	VideoTeam           []Person // VIDEO_TEAM_WA_NUMBERS: editor count roster, grants no access role
+	EditorCycleTemplate string
+	EditorCycleLanguage string
 
 	ClickUpToken   string
 	ClickUpTeamID  string
@@ -211,6 +214,16 @@ func Load(getenv func(string) string) (*Config, error) {
 		problems = append(problems, "missing required variable ADMIN_WA_NUMBERS (founders and project manager, e.g. suranjana=9779812345678)")
 	}
 	c.Team, problems = parsePeople("TEAM_WA_NUMBERS", get("TEAM_WA_NUMBERS", ""), false, problems)
+	c.VideoTeam, problems = parsePeople("VIDEO_TEAM_WA_NUMBERS", get("VIDEO_TEAM_WA_NUMBERS", ""), false, problems)
+	c.EditorCycleTemplate = get("EDITOR_CYCLE_TEMPLATE", "")
+	c.EditorCycleLanguage = get("EDITOR_CYCLE_TEMPLATE_LANG", "en_GB")
+	videoNames, videoNumbers := map[string]bool{}, map[string]bool{}
+	for _, p := range c.VideoTeam {
+		if videoNames[p.Name] || videoNumbers[p.Number] {
+			problems = append(problems, "VIDEO_TEAM_WA_NUMBERS must have unique names and numbers")
+		}
+		videoNames[p.Name], videoNumbers[p.Number] = true, true
+	}
 	seen := map[string]bool{}
 	for _, p := range append(append([]Person(nil), c.Admins...), c.Team...) {
 		if seen[p.Number] {

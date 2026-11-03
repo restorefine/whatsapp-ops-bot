@@ -196,6 +196,10 @@ func routes(webhook *whatsapp.Webhook, portal http.Handler) http.Handler {
 	r.Get("/webhook", webhook.Verify)
 	r.Post("/webhook", webhook.Receive)
 	if portal != nil {
+		r.Handle("/admin/editors", portal)
+		r.Handle("/admin/editors/*", portal)
+		r.Handle("/api/admin/editors", portal)
+		r.Handle("/api/admin/editors.xlsx", portal)
 		r.Handle("/c/*", portal)
 		r.Handle("/portal", portal)
 		r.Handle("/portal/*", portal)
