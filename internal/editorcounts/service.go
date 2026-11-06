@@ -220,13 +220,16 @@ func (s *Service) Report(ctx context.Context) (Report, error) {
 			})
 			index := oldTotal
 			for _, task := range candidates {
+				// Work finished before this editor's cycles began is history, even
+				// when it only becomes eligible later (assigned or moved afterwards).
+				imported := initial || completion(task).Before(ledger.Joined[editor.Key])
 				batch, position := index/BatchSize+1, index%BatchSize+1
-				if initial {
+				if imported {
 					batch, position = 0, 0
 				}
-				records = append(records, Record{TaskID: task.ID, Title: task.Name, List: task.ListName, URL: "https://app.clickup.com/t/" + url.PathEscape(task.ID), CompletedAt: *completion(task), RecordedAt: now, Status: task.Status, Batch: batch, Position: position, Imported: initial})
+				records = append(records, Record{TaskID: task.ID, Title: task.Name, List: task.ListName, URL: "https://app.clickup.com/t/" + url.PathEscape(task.ID), CompletedAt: *completion(task), RecordedAt: now, Status: task.Status, Batch: batch, Position: position, Imported: imported})
 				seen[task.ID] = true
-				if !initial {
+				if !imported {
 					index++
 				}
 			}

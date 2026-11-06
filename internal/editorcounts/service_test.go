@@ -202,3 +202,23 @@ func TestAddingAndRemovingEditorRetainsPreviousHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestOldWorkAssignedAfterStartStaysHistorical(t *testing.T) {
+	s, cu, store, now := fixture()
+	ctx := context.Background()
+	unassigned := completed("may", 1, "Arpan", now.AddDate(0, -5, 0))
+	unassigned.Assignees = nil
+	cu.tasks = []clickup.Task{unassigned}
+	if _, err := s.Report(ctx); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(2 * time.Minute)
+	cu.tasks = []clickup.Task{completed("may", 1, "Arpan", now.AddDate(0, -5, 0)), completed("fresh", 1, "Arpan", now.Add(-time.Minute))}
+	r, err := s.Report(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Editors[0].Total != 1 || r.Editors[0].HistoricalTotal != 1 || len(store.ledger.Alerts) != 0 {
+		t.Fatalf("late-assigned old work entered the cycle: total=%d historical=%d", r.Editors[0].Total, r.Editors[0].HistoricalTotal)
+	}
+}

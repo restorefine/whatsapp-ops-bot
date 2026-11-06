@@ -11,3 +11,5 @@ portal/*.tsbuildinfo
 portal/AGENTS.md
 portal/CLAUDE.md
 .data/
+.vscode/
+docs/CURRENT-CHECKPOINT.md
