@@ -22,7 +22,10 @@ import (
 	_ "time/tzdata"
 
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/approvals"
+	"github.com/prabishdangi/whatsapp-ops-bot/internal/clickup"
+	"github.com/prabishdangi/whatsapp-ops-bot/internal/config"
 	"github.com/prabishdangi/whatsapp-ops-bot/internal/drive"
+	"github.com/prabishdangi/whatsapp-ops-bot/internal/editorcounts"
 )
 
 func setting(name, fallback string) string {
@@ -47,13 +50,71 @@ func main() {
 	retry := flag.String("retry-job", "", "requeue an uncertain delivery after checking whether it reached the recipient")
 	serve := flag.String("serve", "", "serve the real portal locally, e.g. 127.0.0.1:8092; WhatsApp remains disabled")
 	check := flag.Bool("check", false, "read-only Drive connectivity/root check, without creating portal folders")
+	editor := flag.String("editor-cycle", "", "one-off correction: set this video editor's first cycle to exactly -tasks (needs the ClickUp and VIDEO_TEAM_WA_NUMBERS settings)")
+	tasks := flag.String("tasks", "", "comma-separated ClickUp task IDs for -editor-cycle")
 	flag.Parse()
+	if *editor != "" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := setEditorCycle(ctx, *credentials, *token, *keyFile, *editor, *tasks); err != nil {
+			fmt.Fprintln(os.Stderr, "Editor cycle:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, *credentials, *token, *keyFile, *origin, *staticDir, *client, *numbers, *roster, *month, *rotate, *jobs, *retry, *serve, *check); err != nil {
 		fmt.Fprintln(os.Stderr, "Portal setup:", err)
 		os.Exit(1)
 	}
+}
+
+// setEditorCycle runs SetCycle against the real Drive state while holding the
+// portal lock, so it cannot overlap the running bot's writer.
+func setEditorCycle(ctx context.Context, credentials, token, keyFile, editor, taskList string) error {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	editors := []editorcounts.Editor{}
+	for _, p := range cfg.VideoTeam {
+		editors = append(editors, editorcounts.Editor{Key: p.Name, Name: p.Name, Number: p.Number})
+	}
+	ids := []string{}
+	for _, id := range strings.Split(taskList, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	loc, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		return err
+	}
+	unlock, err := approvals.Lock(filepath.Join(filepath.Dir(keyFile), "portal.lock"))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	d, err := drive.Open(ctx, credentials, token)
+	if err != nil {
+		return err
+	}
+	store, err := approvals.New(ctx, d, loc)
+	if err != nil {
+		return err
+	}
+	cu := clickup.NewHTTPClient(cfg.ClickUpBaseURL, cfg.ClickUpToken, cfg.ClickUpTeamID, slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	service := &editorcounts.Service{Source: cu, Store: store, Editors: editors, Now: time.Now}
+	cycle, err := service.SetCycle(ctx, strings.ToLower(strings.TrimSpace(editor)), ids)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s: cycle 1 is now %d/%d. Every other recorded task is historical evidence.\n", editor, len(cycle), editorcounts.BatchSize)
+	for _, r := range cycle {
+		fmt.Printf("  %2d. %s  completed %s  (%s)\n", r.Position, r.Title, r.CompletedAt.In(loc).Format("2 Jan 15:04"), r.TaskID)
+	}
+	return nil
 }
 
 type entry struct {

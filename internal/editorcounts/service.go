@@ -46,6 +46,17 @@ type Ledger struct {
 	Editors   map[string][]Record  `json:"editors"`
 	Joined    map[string]time.Time `json:"joined"`
 	Alerts    []Alert              `json:"alerts"`
+	// Adjustments records each one-off admin correction of an active cycle.
+	Adjustments []Adjustment `json:"adjustments,omitempty"`
+}
+
+// Adjustment is an audit entry for SetCycle: which tasks were placed in the
+// active cycle and which tasks were there before.
+type Adjustment struct {
+	At        time.Time `json:"at"`
+	EditorKey string    `json:"editorKey"`
+	TaskIDs   []string  `json:"taskIds"`
+	Previous  []string  `json:"previous"`
 }
 
 type Alert struct {
@@ -107,37 +118,9 @@ func (s *Service) Report(ctx context.Context) (Report, error) {
 	if s.cached != nil && now.Sub(s.cached.CheckedAt) < time.Minute {
 		return clone(*s.cached), nil
 	}
-	members, err := s.Source.Members(ctx)
+	ids, byID, err := s.fetch(ctx)
 	if err != nil {
 		return Report{}, err
-	}
-	ids := map[string]int{}
-	filter := clickup.TaskFilter{IncludeClosed: true}
-	if len(s.Editors) == 0 {
-		return Report{}, errors.New("no video editors configured")
-	}
-	for _, editor := range s.Editors {
-		for _, m := range members {
-			first := strings.Fields(strings.ToLower(m.DisplayName()))
-			if strings.EqualFold(m.Username, editor.Key) || (len(first) > 0 && first[0] == editor.Key) {
-				if ids[editor.Key] != 0 {
-					return Report{}, fmt.Errorf("more than one ClickUp member matches %s", editor.Name)
-				}
-				ids[editor.Key] = m.ID
-			}
-		}
-		if ids[editor.Key] == 0 {
-			return Report{}, fmt.Errorf("no ClickUp member matches %s", editor.Name)
-		}
-		filter.Assignees = append(filter.Assignees, ids[editor.Key])
-	}
-	tasks, err := s.Source.Tasks(ctx, filter)
-	if err != nil {
-		return Report{}, err
-	}
-	byID := map[string]clickup.Task{}
-	for _, task := range tasks {
-		byID[task.ID] = task
 	}
 	var report Report
 	err = s.Store.UpdateEditorLedger(ctx, func(ledger *Ledger) error {
@@ -289,6 +272,155 @@ func (s *Service) Report(ctx context.Context) (Report, error) {
 	}
 	s.cached = &report
 	return clone(report), nil
+}
+
+// fetch resolves each editor's ClickUp member and returns every task assigned
+// to any of them, including closed tasks.
+func (s *Service) fetch(ctx context.Context) (map[string]int, map[string]clickup.Task, error) {
+	if len(s.Editors) == 0 {
+		return nil, nil, errors.New("no video editors configured")
+	}
+	members, err := s.Source.Members(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	ids := map[string]int{}
+	filter := clickup.TaskFilter{IncludeClosed: true}
+	for _, editor := range s.Editors {
+		for _, m := range members {
+			first := strings.Fields(strings.ToLower(m.DisplayName()))
+			if strings.EqualFold(m.Username, editor.Key) || (len(first) > 0 && first[0] == editor.Key) {
+				if ids[editor.Key] != 0 {
+					return nil, nil, fmt.Errorf("more than one ClickUp member matches %s", editor.Name)
+				}
+				ids[editor.Key] = m.ID
+			}
+		}
+		if ids[editor.Key] == 0 {
+			return nil, nil, fmt.Errorf("no ClickUp member matches %s", editor.Name)
+		}
+		filter.Assignees = append(filter.Assignees, ids[editor.Key])
+	}
+	tasks, err := s.Source.Tasks(ctx, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	byID := map[string]clickup.Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	return ids, byID, nil
+}
+
+// SetCycle is a one-off admin correction for an editor's first cycle: exactly
+// taskIDs become the active cycle (ordered by completion) and every other
+// recorded task for that editor becomes historical evidence. Each task must be
+// currently eligible for that editor in ClickUp. It refuses once the editor has
+// a completed cycle or any alert, so it can never rewrite a payment-ready batch.
+func (s *Service) SetCycle(ctx context.Context, key string, taskIDs []string) ([]Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	known := false
+	for _, e := range s.Editors {
+		known = known || e.Key == key
+	}
+	if !known {
+		return nil, fmt.Errorf("%s is not in VIDEO_TEAM_WA_NUMBERS", key)
+	}
+	want := map[string]bool{}
+	for _, id := range taskIDs {
+		if id == "" || want[id] {
+			return nil, errors.New("task IDs must be non-empty and unique")
+		}
+		want[id] = true
+	}
+	if len(want) == 0 || len(want) >= BatchSize {
+		return nil, fmt.Errorf("give between 1 and %d task IDs", BatchSize-1)
+	}
+	ids, byID, err := s.fetch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for id := range want {
+		task, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("task %s was not returned by ClickUp for the configured editors", id)
+		}
+		if eligible(task, key, ids) != key || completion(task) == nil {
+			return nil, fmt.Errorf("task %s (%s) is not a completed top-level task assigned only to %s in their list", id, task.Name, key)
+		}
+	}
+	now := s.Now().UTC()
+	var cycle []Record
+	err = s.Store.UpdateEditorLedger(ctx, func(ledger *Ledger) error {
+		if err := Validate(*ledger); err != nil {
+			return err
+		}
+		if ledger.Joined[key].IsZero() {
+			return errors.New("editor has not been scanned yet; open the report once first")
+		}
+		for _, a := range ledger.Alerts {
+			if a.EditorKey == key {
+				return errors.New("editor already has a cycle alert; refusing to rewrite cycles")
+			}
+		}
+		for other, records := range ledger.Editors {
+			for _, r := range records {
+				if other != key && want[r.TaskID] {
+					return fmt.Errorf("task %s is recorded for %s", r.TaskID, other)
+				}
+			}
+		}
+		var previous []string
+		var kept []Record
+		for _, r := range ledger.Editors[key] {
+			if !r.Imported {
+				previous = append(previous, r.TaskID)
+				if r.Batch > 1 {
+					return errors.New("editor already has a completed cycle; refusing to rewrite cycles")
+				}
+			}
+			if want[r.TaskID] {
+				continue
+			}
+			r.Imported, r.Batch, r.Position = true, 0, 0
+			kept = append(kept, r)
+		}
+		cycle = nil
+		for id := range want {
+			task := byID[id]
+			cycle = append(cycle, Record{TaskID: id, Title: task.Name, List: task.ListName, URL: "https://app.clickup.com/t/" + url.PathEscape(id), CompletedAt: *completion(task), RecordedAt: now, Status: task.Status})
+		}
+		// Keep the first recording time for tasks that were already in the ledger.
+		for i := range cycle {
+			for _, r := range ledger.Editors[key] {
+				if r.TaskID == cycle[i].TaskID {
+					cycle[i].RecordedAt = r.RecordedAt
+				}
+			}
+		}
+		sort.Slice(cycle, func(i, j int) bool {
+			if cycle[i].CompletedAt.Equal(cycle[j].CompletedAt) {
+				return cycle[i].TaskID < cycle[j].TaskID
+			}
+			return cycle[i].CompletedAt.Before(cycle[j].CompletedAt)
+		})
+		for i := range cycle {
+			cycle[i].Batch, cycle[i].Position = 1, i+1
+		}
+		ledger.Editors[key] = append(kept, cycle...)
+		ordered := make([]string, len(cycle))
+		for i, r := range cycle {
+			ordered[i] = r.TaskID
+		}
+		ledger.Adjustments = append(ledger.Adjustments, Adjustment{At: now, EditorKey: key, TaskIDs: ordered, Previous: previous})
+		return Validate(*ledger)
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.cached = nil
+	return cycle, nil
 }
 
 func isComplete(t clickup.Task) bool {

@@ -222,3 +222,55 @@ func TestOldWorkAssignedAfterStartStaysHistorical(t *testing.T) {
 		t.Fatalf("late-assigned old work entered the cycle: total=%d historical=%d", r.Editors[0].Total, r.Editors[0].HistoricalTotal)
 	}
 }
+
+func TestSetCycleMovesChosenTasksIntoFirstCycle(t *testing.T) {
+	s, cu, store, now := fixture()
+	ctx := context.Background()
+	start := *now
+	cu.tasks = []clickup.Task{
+		completed("a1", 1, "Arpan", start.AddDate(0, 0, -10)),
+		completed("a2", 1, "Arpan", start.AddDate(0, 0, -5)),
+		completed("a3", 1, "Arpan", start.AddDate(0, 0, -20)),
+	}
+	if _, err := s.Report(ctx); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(time.Hour)
+	cu.tasks = append(cu.tasks, completed("a4", 1, "Arpan", now.Add(-time.Minute)))
+	if _, err := s.Report(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// a2 was re-closed after counting began; the correction takes ClickUp's current time.
+	cu.tasks[1] = completed("a2", 1, "Arpan", now.Add(-2*time.Minute))
+	if _, err := s.SetCycle(ctx, "sunil", []string{"a1"}); err == nil {
+		t.Fatal("accepted another editor's task")
+	}
+	if _, err := s.SetCycle(ctx, "arpan", []string{"a1", "missing"}); err == nil {
+		t.Fatal("accepted an unknown task")
+	}
+	cycle, err := s.SetCycle(ctx, "arpan", []string{"a4", "a1", "a2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cycle) != 3 || cycle[0].TaskID != "a1" || cycle[1].TaskID != "a2" || cycle[2].TaskID != "a4" {
+		t.Fatalf("cycle not ordered by completion: %+v", cycle)
+	}
+	*now = now.Add(2 * time.Minute)
+	r, err := s.Report(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := r.Editors[0]
+	if a.Total != 3 || a.CurrentCount != 3 || a.HistoricalTotal != 1 || a.ReviewCount != 0 || len(store.ledger.Adjustments) != 1 {
+		t.Fatalf("total=%d current=%d historical=%d review=%d adjustments=%d", a.Total, a.CurrentCount, a.HistoricalTotal, a.ReviewCount, len(store.ledger.Adjustments))
+	}
+	if got := store.ledger.Adjustments[0].Previous; len(got) != 1 || got[0] != "a4" {
+		t.Fatalf("previous cycle not audited: %v", got)
+	}
+	// Later work continues the corrected cycle.
+	cu.tasks = append(cu.tasks, completed("a5", 1, "Arpan", now.Add(-time.Minute)))
+	*now = now.Add(2 * time.Minute)
+	if r, _ = s.Report(ctx); r.Editors[0].CurrentCount != 4 {
+		t.Fatalf("new work did not continue the cycle: %d", r.Editors[0].CurrentCount)
+	}
+}
